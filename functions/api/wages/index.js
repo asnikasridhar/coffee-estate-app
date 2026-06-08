@@ -1,0 +1,4 @@
+import { json, options, body } from '../../_shared/http.js';
+export async function onRequestOptions(){return options();}
+export async function onRequestGet({env}){const r=await env.DB.prepare(`SELECT w.wage_id,w.labor_id,l.name labor_name,w.wage_fixed,w.wage_variable,w.wage_fix_code,w.wage_ot_perhr_price FROM wage w JOIN labors l ON l.labor_id=w.labor_id ORDER BY l.name`).all();return json(r.results||[])}
+export async function onRequestPost({request,env}){try{const b=await body(request);const rs=await env.DB.prepare(`INSERT INTO wage (wage_fixed,wage_variable,wage_fix_code,wage_ot_perhr_price,labor_id,created_by) VALUES (?,?,?,?,?,?)`).bind(Number(b.wage_fixed||0),Number(b.wage_variable||0),b.wage_fix_code||'CURRENT',Number(b.wage_ot_perhr_price||0),Number(b.labor_id),b.created_by||'Cloudflare').run();return json({wage_id:rs.meta.last_row_id,...b},201)}catch(e){return json({error:'Wage save failed',details:e.message},500)}}
