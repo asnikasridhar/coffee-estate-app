@@ -1,0 +1,37 @@
+PRAGMA foreign_keys = OFF;
+
+INSERT INTO attendance VALUES (1,1,1,1,'2025-09-01 00:00:00','Admin',NULL,'2025-09-30 15:39:55',NULL,0.00),(2,11,1,1,'2025-09-01 00:00:00','Admin',NULL,'2025-09-30 15:39:55',NULL,0.00),(3,1,1,1,'2025-09-01 00:00:00','Admin',NULL,'2025-09-30 16:43:38',NULL,1.00),(4,1,1,1,'2025-09-02 00:00:00','Admin',NULL,'2025-09-30 16:43:38',NULL,1.00),(5,11,1,1,'2025-09-01 00:00:00','Admin',NULL,'2025-09-30 16:43:38',NULL,1.00),(6,11,1,1,'2025-09-02 00:00:00','Admin',NULL,'2025-09-30 16:43:38',NULL,1.00),(7,12,1,1,'2025-09-01 00:00:00','Admin',NULL,'2025-09-30 16:43:38',NULL,1.00),(8,12,1,1,'2025-09-02 00:00:00','Admin',NULL,'2025-09-30 16:43:38',NULL,0.50),(9,1,1,1,'2025-09-01 00:00:00','Admin',NULL,'2025-09-30 16:47:05',NULL,1.00),(10,1,1,1,'2025-09-02 00:00:00','Admin',NULL,'2025-09-30 16:47:05',NULL,1.00),(11,1,1,1,'2025-09-03 00:00:00','Admin',NULL,'2025-09-30 16:47:05',NULL,1.00),(12,11,1,1,'2025-09-01 00:00:00','Admin',NULL,'2025-09-30 16:47:05',NULL,1.00),(13,11,1,1,'2025-09-02 00:00:00','Admin',NULL,'2025-09-30 16:47:05',NULL,1.00),(14,11,1,1,'2025-09-03 00:00:00','Admin',NULL,'2025-09-30 16:47:05',NULL,0.50),(15,12,1,1,'2025-09-01 00:00:00','Admin',NULL,'2025-09-30 16:47:05',NULL,1.00),(16,12,1,1,'2025-09-02 00:00:00','Admin',NULL,'2025-09-30 16:47:05',NULL,0.50),(17,12,1,1,'2025-09-03 00:00:00','Admin',NULL,'2025-09-30 16:47:05',NULL,0.25);
+
+INSERT INTO baseunit VALUES (1,'kg','2025-10-11 08:34:07','sys','2025-10-11 08:34:07',NULL),(2,'bushal','2025-10-11 08:34:07','sys','2025-10-11 08:34:07',NULL),(3,'mm','2025-10-11 08:34:07','sys','2025-10-11 08:34:07',NULL);
+
+INSERT INTO blocks VALUES (1,'A',23,1,NULL),(3,'B',33,1,NULL),(4,'Q',11,1,NULL),(5,'SUB BLOCK A',22,1,1);
+
+INSERT INTO cropdetails VALUES (1,20000,11000,1,NULL,NULL,NULL,NULL,NULL),(2,22,1111,1,'2024-09-12 14:44:43',NULL,NULL,NULL,NULL),(3,200,20000,2,NULL,NULL,NULL,NULL,NULL),(4,200,20000,2,NULL,NULL,NULL,NULL,NULL),(5,12,111,1,NULL,NULL,NULL,NULL,NULL),(6,195,20000,1,'2025-09-29 23:54:46','sys',NULL,NULL,''),(7,195,20000,2,'2025-09-29 23:55:07','sys',NULL,NULL,''),(8,21,222,1,'2025-09-29 23:55:33','sys',NULL,NULL,'');
+
+INSERT INTO fertilizers VALUES (1,'NPK 20-10-70','2024-08-30',1,NULL,NULL,NULL,NULL,NULL);
+
+INSERT INTO labors VALUES (1,1,'Sundara',30,'420420- 420420','Jagara International Bank','Health and fix','https://en.wikipedia.org/wiki/Sunder_%28actor%29#/media/File:Sunder_Actor.jpg','Jagara','Owner address',NULL,NULL,NULL,NULL),(2,1,'Best Labour',23,'3232323','23232','adsadasdas','','sadsasad','11222','2024-09-12 14:43:23',NULL,NULL,NULL),(3,1,'Test Lab 2',22,'122212','221121','asassad','','sdsds','sdsd','2024-09-13 15:26:41',NULL,NULL,NULL),(4,5,'Test Lab 21',22,'122212','221121','asassad','','sdsds','sdsd','2024-09-13 15:27:02',NULL,NULL,NULL),(5,5,'Test Lab 3',33,'3232323','55555','ddsfds','sa','fsasfa','afasfasf','2024-09-13 15:37:49',NULL,NULL,NULL),(6,1,'Test Lab 3',33,'3232323','55555','ddsfds','sa','fsasfa','afasfasf','2024-09-13 15:38:13',NULL,NULL,NULL),(7,1,'Test Lab 3',33,'3232323','55555','ddsfds','sa','fsasfa','afasfasf','2024-09-13 15:42:37',NULL,NULL,NULL),(8,1,'Test Lab 32',33,'3232323','55555','ddsfds','sa','fsasfa','afasfasf','2024-09-13 15:53:58',NULL,NULL,NULL),(9,1,'Test Lab 55',33,'3232323','55555','ddsfds','sa','fsasfa','afasfasf','2024-09-13 15:55:21',NULL,NULL,NULL),(10,1,'Test Lab 551',33,'3232323','55555','ddsfds','sa','fsasfa','afasfasf','2024-09-13 15:55:34',NULL,NULL,NULL),(11,1,'Test Lab 55322',33,'3232323','55555','ddsfds','sa','fsasfa','afasfasf','2024-09-13 15:58:01',NULL,NULL,NULL),(12,5,'TestNewLab1',26,'8888778999','122344','asadas','D:\\JavaTerrain','add 123','333','2025-09-29 23:26:05','sys',NULL,NULL);
+
+INSERT INTO plantdetails VALUES (1,'arabica','This is good varity1111',3,NULL,NULL,NULL,'2024-09-11 15:47:36',NULL),(2,'arabica','sdsdsd',1,NULL,'2024-09-12 14:44:28',NULL,NULL,NULL),(3,'robusta','Some varity',1,NULL,'2025-09-29 23:46:25','sys',NULL,NULL);
+
+INSERT INTO property VALUES (1,'Manjushree',12,'1122','777','999',1,NULL,NULL,'2024-09-05 11:38:07',NULL),(2,'Belavadi',23,'add2','add3','445555',1,NULL,NULL,NULL,NULL),(3,'Testprop1',1,'qw33','asda','33223',1,'2025-09-30 00:26:26','sys',NULL,NULL);
+
+INSERT INTO propertylabor VALUES (1,1),(1,11),(1,12);
+
+INSERT INTO propertyuser VALUES (2,1),(1,1),(1,5),(3,1);
+
+INSERT INTO raindetails VALUES (1,'2024-08-29 15:23:00',333,3,NULL,NULL,'2024-09-11 15:23:05',NULL),(3,'2024-09-14 14:45:00',222,1,'2024-09-12 14:46:30',NULL,NULL,NULL),(4,'2024-09-07 16:25:00',5555,1,'2024-09-13 16:25:43',NULL,NULL,NULL),(5,'2025-09-24 03:08:00',22,1,'2025-09-30 00:05:42','sys',NULL,NULL);
+
+INSERT INTO reports VALUES (1,222222,888889000,25,NULL,NULL,NULL,NULL,NULL),(2,200000,1000000,800000,NULL,NULL,NULL,NULL,NULL);
+
+INSERT INTO users VALUES (1,'Asnika Sridhar','$2a$12$nQl5x2G/u3Tf32SPz3B9I.Vf/21Z3GwBOzMghErOKZOwO0.dGZNPC','owner',1,'asnikasridhar1@gmail.com',NULL,NULL,NULL,NULL),(3,'Pavan','pavan','owner',1,'pavan@bhushan.com',NULL,NULL,NULL,NULL),(4,'Ishaan','chiinipaapu','owner',1,'ishaan@baabi.com',NULL,NULL,NULL,NULL),(5,'pavan1','$2b$10$nxfr9MCtspOnq3dAoCyfS./IP5A6M0CuDb3kDLvt9R6Onpl.HFJMu','owner',1,'alexmahone@gmail.com','2024-09-11 17:17:25',NULL,NULL,NULL),(6,'UserTest123','$2b$10$eENSBPNgbOEe43gNwkhLYuVIOLplmKox3ZqrDXhmgqNxYKzDHFpI.','owner',1,'user@email.com','2025-09-29 23:28:25','sys',NULL,NULL);
+
+INSERT INTO wage VALUES (1,100.00,100.00,'WG_LABNAME_25',50.00,1,'2025-10-13 04:52:18','sys',NULL,NULL),(2,150.00,100.00,'WG_LABNAME2_25',50.00,2,'2025-10-13 04:53:31','sys',NULL,NULL);
+
+INSERT INTO yield_settlement VALUES (1,1,100.00,'2025-10-11 00:00:00','2025-10-11 00:00:00','sys','2025-10-11 17:04:04',NULL);
+
+INSERT INTO yieldrate VALUES (1,1,1,'ARA_CO_TODAYDATE',2300.00,1,'2025-10-11 00:00:00','sys','2025-10-11 08:40:45',NULL);
+
+INSERT INTO yieldtype VALUES (1,'fruit',1,'2025-10-11 00:00:00','sys',NULL,NULL),(2,'parchment',1,'2025-10-11 00:00:00','sys',NULL,NULL);
+
+PRAGMA foreign_keys = ON;

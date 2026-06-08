@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { store } from './app/store';
 import { useAppDispatch, useAppSelector } from './app/hooks';
-import { createAttendance, createRainfall, createYield, deleteResource, loadAttendance, loadDashboard, loadMeta, loadRainfall, loadResource, loadYield, saveResource, login, logout, setSelectedPropertyId, registerProperty } from './features/appSlice';
+import { createAttendance, createRainfall, createYield, deleteResource, loadAttendance, loadDashboard, loadMeta, loadRainfall, loadResource, loadYield, saveResource, login, logout, setSelectedPropertyId, registerProperty, setDashboardRanges } from './features/appSlice';
 import './styles.css';
 
 const today = new Date().toISOString().slice(0,10);
@@ -66,7 +66,36 @@ function PropertySelector({meta}:any){ const dispatch=useAppDispatch(); const {s
 function RegisterProperty(){ const dispatch=useAppDispatch(); const [f,setF]=useState({property_name:'',total_acre:'0',address_1:'',address_2:'',pincode:''}); return <Form title="Register your first property" onSubmit={()=>dispatch(registerProperty(f))}><Input label="Property name" v="property_name" f={f} setF={setF}/><Input label="Total acre" type="number" v="total_acre" f={f} setF={setF}/><Input label="Address 1" v="address_1" f={f} setF={setF}/><Input label="Address 2" v="address_2" f={f} setF={setF}/><Input label="Pincode" v="pincode" f={f} setF={setF}/></Form> }
 function Badge({children}:any){return <span className="badge">{children}</span>}
 function Card({label,value}:{label:string,value:any}){return <div className="card"><small>{label}</small><strong>{value}</strong></div>}
-function Dashboard({data}:{data:any}){ if(!data) return <p>Loading dashboard…</p>; return <><section className="grid"><Card label="Labor days" value={data.attendance.labor_days}/><Card label="Labor cost" value={`₹${Number(data.laborCost.total).toFixed(2)}`}/><Card label="Rainfall total" value={`${data.rainfall.total} mm`}/><Card label="Yield value" value={`₹${Number(data.yieldTotal.value).toFixed(2)}`}/><Card label="Expenses" value={`₹${Number(data.expenses.total).toFixed(2)}`}/><Card label="Income" value={`₹${Number(data.income.total).toFixed(2)}`}/><Card label="Assets" value={`₹${Number(data.assets.value).toFixed(2)}`}/><Card label="Profit estimate" value={`₹${Number(data.profit).toFixed(2)}`}/></section><h2>Recent attendance</h2><Table rows={data.recentAttendance}/><h2>Rain by block</h2><Table rows={data.rainByBlock}/><h2>Property income/expense</h2><Table rows={data.propertyProfit}/></>}
+
+function maxFromFor(to:string){ const d=new Date((to || today)+'T00:00:00'); d.setFullYear(d.getFullYear()-1); return d.toISOString().slice(0,10); }
+function RangeControls({prefix,label}:any){
+  const dispatch=useAppDispatch();
+  const {dashboardRanges}=useAppSelector(s=>s.app);
+  const fromKey=`${prefix}From`, toKey=`${prefix}To`;
+  const currentTo=dashboardRanges[toKey] || today;
+  const currentFrom=dashboardRanges[fromKey] || maxFromFor(currentTo);
+  const apply=(next:any)=>{ dispatch(setDashboardRanges(next)); dispatch(loadDashboard(next)); };
+  return <div className="rangeControls"><strong>{label}</strong><label>From<input type="date" value={currentFrom} max={currentTo} onChange={e=>apply({[fromKey]:e.target.value})}/></label><label>To<input type="date" value={currentTo} min={maxFromFor(currentTo)} max={today} onChange={e=>apply({[toKey]:e.target.value,[fromKey]: currentFrom < maxFromFor(e.target.value) ? maxFromFor(e.target.value) : currentFrom})}/></label><small>Max range: 1 year</small></div>
+}
+function StatPanel({prefix,label,value,sub}:any){return <div className="card statPanel"><RangeControls prefix={prefix} label={label}/><strong>{value}</strong>{sub&&<small>{sub}</small>}</div>}
+function Dashboard({data}:{data:any}){
+  if(!data) return <p>Loading dashboard…</p>;
+  return <>
+    <section className="grid">
+      <StatPanel prefix="attendance" label="Labor days" value={data.attendance.labor_days} sub={`Entries: ${data.attendance.entries}`}/>
+      <StatPanel prefix="attendance" label="Labor cost" value={`₹${Number(data.laborCost.total).toFixed(2)}`} />
+      <StatPanel prefix="rainfall" label="Rainfall total" value={`${data.rainfall.total} mm`} sub={`Entries: ${data.rainfall.entries}`}/>
+      <StatPanel prefix="yield" label="Yield value" value={`₹${Number(data.yieldTotal.value).toFixed(2)}`} sub={`Qty: ${data.yieldTotal.quantity}`}/>
+      <StatPanel prefix="expenses" label="Expenses" value={`₹${Number(data.expenses.total).toFixed(2)}`} />
+      <StatPanel prefix="income" label="Income" value={`₹${Number(data.income.total).toFixed(2)}`} />
+      <StatPanel prefix="assets" label="Assets" value={`₹${Number(data.assets.value).toFixed(2)}`} />
+      <StatPanel prefix="profit" label="Profit estimate" value={`₹${Number(data.profit).toFixed(2)}`} />
+    </section>
+    <section className="panel"><RangeControls prefix="recent" label="Recent attendance range"/><Table rows={data.recentAttendance}/></section>
+    <section className="panel"><RangeControls prefix="rainfall" label="Rain by block range"/><Table rows={data.rainByBlock}/></section>
+    <section className="panel"><RangeControls prefix="profit" label="Income / expense range"/><Table rows={data.propertyProfit}/></section>
+  </>
+}
 function firstId(items:any[], id:string){ return items?.[0]?.[id] ? String(items[0][id]) : ''; }
 function Attendance({meta,rows,submit}:any){const [f,setF]=useState({labor_id:firstId(meta?.labors,'labor_id'),entry_date:today,attendance_value:'1',created_by:'Admin'});useEffect(()=>setF((x:any)=>({...x,labor_id:x.labor_id||firstId(meta?.labors,'labor_id')})),[meta]);return <><Form title="Add attendance" onSubmit={()=>submit(f)}><Select label="Labor" v="labor_id" f={f} setF={setF} opts={meta?.labors} id="labor_id" name="labor_name"/><Input label="Date" type="date" v="entry_date" f={f} setF={setF}/><Input label="Value" type="number" step="0.25" v="attendance_value" f={f} setF={setF}/></Form><Table rows={rows}/></>}
 function Rainfall({meta,rows,submit}:any){const [f,setF]=useState({block_id:firstId(meta?.blocks,'block_id'),recorded_date:today,rain_value:'0',created_by:'Admin'});useEffect(()=>setF((x:any)=>({...x,block_id:x.block_id||firstId(meta?.blocks,'block_id')})),[meta]);return <><Form title="Add rainfall" onSubmit={()=>submit(f)}><Select label="Block from selected property" v="block_id" f={f} setF={setF} opts={meta?.blocks} id="block_id" name="block_name"/><Input label="Date" type="date" v="recorded_date" f={f} setF={setF}/><Input label="Rain mm" type="number" step="0.1" v="rain_value" f={f} setF={setF}/></Form><Table rows={rows}/></>}

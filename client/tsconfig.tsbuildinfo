@@ -1,0 +1,1 @@
+{"root":["./src/main.tsx","./src/app/hooks.ts","./src/app/store.ts","./src/features/appSlice.ts"],"errors":true,"version":"5.8.3"}

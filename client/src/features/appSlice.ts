@@ -23,7 +23,12 @@ export const login = createAsyncThunk('app/login', async (payload: {username:str
 export const loadOwnerProperties = createAsyncThunk('app/loadOwnerProperties', () => api('/api/owner/properties'));
 export const registerProperty = createAsyncThunk('app/registerProperty', async (payload: any, { dispatch }) => { const p = await api('/api/owner/properties', { method:'POST', body: JSON.stringify(payload) }); localStorage.setItem('selectedPropertyId', String(p.property_id)); dispatch(setSelectedPropertyId(String(p.property_id))); dispatch(loadMeta()); dispatch(loadDashboard()); return p; });
 export const loadMeta = createAsyncThunk('app/loadMeta', () => api('/api/meta'));
-export const loadDashboard = createAsyncThunk('app/loadDashboard', () => api('/api/dashboard'));
+export const loadDashboard = createAsyncThunk('app/loadDashboard', (params: Record<string,string> | undefined, { getState }: any) => {
+  const state = getState().app;
+  const merged = new URLSearchParams({ ...(state.dashboardRanges || {}), ...(params || {}) });
+  const qs = merged.toString();
+  return api(`/api/dashboard${qs ? '?' + qs : ''}`);
+});
 export const loadAttendance = createAsyncThunk('app/loadAttendance', () => api('/api/attendance'));
 export const loadRainfall = createAsyncThunk('app/loadRainfall', () => api('/api/rainfall'));
 export const loadYield = createAsyncThunk('app/loadYield', () => api('/api/yield'));
@@ -34,12 +39,13 @@ export const createAttendance = createAsyncThunk('app/createAttendance', async (
 export const createRainfall = createAsyncThunk('app/createRainfall', async (payload: any, { dispatch }) => { await api('/api/rainfall', { method: 'POST', body: JSON.stringify(payload) }); dispatch(loadRainfall()); dispatch(loadDashboard()); });
 export const createYield = createAsyncThunk('app/createYield', async (payload: any, { dispatch }) => { await api('/api/yield', { method: 'POST', body: JSON.stringify(payload) }); dispatch(loadYield()); dispatch(loadDashboard()); });
 
-type State = { user:any; selectedPropertyId:string; meta:any; dashboard:any; attendance:any[]; rainfall:any[]; yields:any[]; resources:Record<string, any[]>; status:string; error:string };
-const initialState: State = { user: savedUser ? JSON.parse(savedUser) : null, selectedPropertyId: savedProperty || '', meta:null, dashboard:null, attendance:[], rainfall:[], yields:[], resources:{}, status:'idle', error:'' };
+type State = { user:any; selectedPropertyId:string; meta:any; dashboard:any; dashboardRanges:Record<string,string>; attendance:any[]; rainfall:any[]; yields:any[]; resources:Record<string, any[]>; status:string; error:string };
+const initialState: State = { user: savedUser ? JSON.parse(savedUser) : null, selectedPropertyId: savedProperty || '', meta:null, dashboard:null, dashboardRanges: JSON.parse(localStorage.getItem('dashboardRanges') || '{}'), attendance:[], rainfall:[], yields:[], resources:{}, status:'idle', error:'' };
 const slice = createSlice({
   name: 'app', initialState,
   reducers: {
     setSelectedPropertyId: (s, a:PayloadAction<string>) => { s.selectedPropertyId = a.payload; localStorage.setItem('selectedPropertyId', a.payload); },
+    setDashboardRanges: (s, a:PayloadAction<Record<string,string>>) => { s.dashboardRanges = { ...s.dashboardRanges, ...a.payload }; localStorage.setItem('dashboardRanges', JSON.stringify(s.dashboardRanges)); },
     logout: (s) => { s.user=null; s.selectedPropertyId=''; s.meta=null; s.dashboard=null; localStorage.removeItem('estateUser'); localStorage.removeItem('selectedPropertyId'); }
   },
   extraReducers: b => {
@@ -56,5 +62,5 @@ const slice = createSlice({
     b.addMatcher(a => a.type.endsWith('/rejected'), (s,a:any) => { s.status='failed'; s.error = a.error?.message || 'Request failed'; });
   }
 });
-export const { setSelectedPropertyId, logout } = slice.actions;
+export const { setSelectedPropertyId, setDashboardRanges, logout } = slice.actions;
 export default slice.reducer;
