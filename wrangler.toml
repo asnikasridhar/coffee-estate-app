@@ -5,4 +5,4 @@ pages_build_output_dir = "client/dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "coffee-estate-db"
-database_id = "PASTE_CLOUDFLARE_D1_DATABASE_ID_HERE"
+database_id = "4746bef3-940a-44a1-a8ed-56f86f6ae087"
