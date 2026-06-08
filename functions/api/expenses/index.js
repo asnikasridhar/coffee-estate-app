@@ -1,4 +1,5 @@
-import { json, options, body, propertyIdFromUrl, dateRange } from '../../_shared/http.js';
-export async function onRequestOptions(){return options();}
-export async function onRequestGet({request,env}){try{const propertyId=propertyIdFromUrl(request);const{from,to}=dateRange(new URL(request.url));const r=await env.DB.prepare(`SELECT expense_id,property_id,expense_date,expense_type,amount,description,vendor_id FROM expenses WHERE property_id=? AND date(expense_date) BETWEEN date(?) AND date(?) ORDER BY expense_date DESC,expense_id DESC`).bind(propertyId,from,to).all();return json(r.results||[])}catch(e){return json({error:'Expenses load failed',details:e.message},500)}}
-export async function onRequestPost({request,env}){try{const b=await body(request);const rs=await env.DB.prepare(`INSERT INTO expenses (property_id,expense_date,expense_type,amount,description,vendor_id,created_by) VALUES (?,?,?,?,?,?,?)`).bind(Number(b.property_id),b.expense_date, b.expense_type||'General', Number(b.amount||0), b.description||'', b.vendor_id?Number(b.vendor_id):null, b.created_by||'Cloudflare').run();return json({expense_id:rs.meta.last_row_id,...b},201)}catch(e){return json({error:'Expense save failed',details:e.message},500)}}
+import { options, fail } from '../../_shared/http.js';
+import { listResource, createResource } from '../../_shared/crud.js';
+export function onRequestOptions(){return options();}
+export async function onRequestGet({request,env}){try{return await listResource(request,env,'expenses');}catch(err){return fail(err,'expenses failed');}}
+export async function onRequestPost({request,env}){try{return await createResource(request,env,'expenses');}catch(err){return fail(err,'Create expenses failed');}}

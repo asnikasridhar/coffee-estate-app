@@ -1,4 +1,5 @@
-import { json, options, body, propertyIdFromUrl } from '../../_shared/http.js';
-export async function onRequestOptions(){return options();}
-export async function onRequestGet({request,env}){try{const propertyId=propertyIdFromUrl(request);const r=await env.DB.prepare(`SELECT inventory_id,property_id,item_name,quantity,unit,updated_on FROM inventory WHERE property_id=? ORDER BY item_name`).bind(propertyId).all();return json(r.results||[])}catch(e){return json({error:'Inventory load failed',details:e.message},500)}}
-export async function onRequestPost({request,env}){try{const b=await body(request);const rs=await env.DB.prepare(`INSERT INTO inventory (property_id,item_name,quantity,unit,updated_on,created_by) VALUES (?,?,?,?,CURRENT_TIMESTAMP,?)`).bind(Number(b.property_id),b.item_name,Number(b.quantity||0),b.unit||'',b.created_by||'Cloudflare').run();return json({inventory_id:rs.meta.last_row_id,...b},201)}catch(e){return json({error:'Inventory save failed',details:e.message},500)}}
+import { options, fail } from '../../_shared/http.js';
+import { listResource, createResource } from '../../_shared/crud.js';
+export function onRequestOptions(){return options();}
+export async function onRequestGet({request,env}){try{return await listResource(request,env,'inventory');}catch(err){return fail(err,'inventory failed');}}
+export async function onRequestPost({request,env}){try{return await createResource(request,env,'inventory');}catch(err){return fail(err,'Create inventory failed');}}

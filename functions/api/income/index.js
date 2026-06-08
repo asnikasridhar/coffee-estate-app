@@ -1,4 +1,5 @@
-import { json, options, body, propertyIdFromUrl, dateRange } from '../../_shared/http.js';
-export async function onRequestOptions(){return options();}
-export async function onRequestGet({request,env}){try{const propertyId=propertyIdFromUrl(request);const{from,to}=dateRange(new URL(request.url));const r=await env.DB.prepare(`SELECT income_id,property_id,income_date,income_type,amount,description FROM income WHERE property_id=? AND date(income_date) BETWEEN date(?) AND date(?) ORDER BY income_date DESC,income_id DESC`).bind(propertyId,from,to).all();return json(r.results||[])}catch(e){return json({error:'Income load failed',details:e.message},500)}}
-export async function onRequestPost({request,env}){try{const b=await body(request);const rs=await env.DB.prepare(`INSERT INTO income (property_id,income_date,income_type,amount,description,created_by) VALUES (?,?,?,?,?,?)`).bind(Number(b.property_id),b.income_date,b.income_type||'Sale',Number(b.amount||0),b.description||'',b.created_by||'Cloudflare').run();return json({income_id:rs.meta.last_row_id,...b},201)}catch(e){return json({error:'Income save failed',details:e.message},500)}}
+import { options, fail } from '../../_shared/http.js';
+import { listResource, createResource } from '../../_shared/crud.js';
+export function onRequestOptions(){return options();}
+export async function onRequestGet({request,env}){try{return await listResource(request,env,'income');}catch(err){return fail(err,'income failed');}}
+export async function onRequestPost({request,env}){try{return await createResource(request,env,'income');}catch(err){return fail(err,'Create income failed');}}
