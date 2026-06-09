@@ -6,7 +6,7 @@ This is a full local-testable estate management app using:
 - Express API backend
 - SQLite local database using `better-sqlite3`
 - Migration/seed SQL included in `migrations/001_schema_seed.sql`
-- Cloudflare D1-compatible schema path for later deployment...
+- Cloudflare D1-compatible schema path for later deployment
 
 ## Run locally
 

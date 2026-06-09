@@ -15,9 +15,22 @@ const baseHeaders = () => {
 };
 const api = async (path: string, options?: RequestInit) => {
   const res = await fetch(path, { headers: baseHeaders(), ...options });
-  if (!res.ok) throw new Error(await res.text());
   if (res.status === 204) return null;
-  return res.json();
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text();
+  const looksHtml = text.trim().startsWith('<!doctype') || text.trim().startsWith('<html') || text.trim().startsWith('<script');
+  let data: any = null;
+  if (contentType.includes('application/json') && text) {
+    try { data = JSON.parse(text); } catch { data = null; }
+  }
+  if (!res.ok) {
+    const message = data?.error || data?.details || (looksHtml ? `API route ${path} returned the React page instead of JSON. Check Cloudflare functions deployment.` : text) || `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  if (looksHtml) throw new Error(`API route ${path} returned HTML instead of JSON. The matching Cloudflare Function is missing or not deployed.`);
+  if (data !== null) return data;
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return text; }
 };
 export const login = createAsyncThunk('app/login', async (payload: {username:string; password:string}) => api('/api/auth/login', { method:'POST', body: JSON.stringify(payload) }));
 export const loadOwnerProperties = createAsyncThunk('app/loadOwnerProperties', () => api('/api/owner/properties'));
