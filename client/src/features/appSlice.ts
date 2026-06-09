@@ -2,7 +2,7 @@ import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 export const resources = [
   'properties','blocks','labors','vendors','laborVendors','vendorSettlements','wages','wageSettlements',
-  'plants','plantInventory','yieldTypes','yieldRates','assets','expenseTypes','expenses','cropDetails','cropIncome','fertilizers','reports','baseUnits'
+  'plants','yieldTypes','yieldRates','assets','expenseTypes','expenses','cropDetails','cropIncome','fertilizers','reports','baseUnits'
 ];
 
 const savedUser = localStorage.getItem('estateUser');
@@ -15,9 +15,22 @@ const baseHeaders = () => {
 };
 const api = async (path: string, options?: RequestInit) => {
   const res = await fetch(path, { headers: baseHeaders(), ...options });
-  if (!res.ok) throw new Error(await res.text());
   if (res.status === 204) return null;
-  return res.json();
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text();
+  const looksHtml = text.trim().startsWith('<!doctype') || text.trim().startsWith('<html') || text.trim().startsWith('<script');
+  let data: any = null;
+  if (contentType.includes('application/json') && text) {
+    try { data = JSON.parse(text); } catch { data = null; }
+  }
+  if (!res.ok) {
+    const message = data?.error || data?.details || (looksHtml ? `API route ${path} returned the React page instead of JSON. Check Cloudflare functions deployment.` : text) || `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  if (looksHtml) throw new Error(`API route ${path} returned HTML instead of JSON. The matching Cloudflare Function is missing or not deployed.`);
+  if (data !== null) return data;
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return text; }
 };
 export const login = createAsyncThunk('app/login', async (payload: {username:string; password:string}) => api('/api/auth/login', { method:'POST', body: JSON.stringify(payload) }));
 export const loadOwnerProperties = createAsyncThunk('app/loadOwnerProperties', () => api('/api/owner/properties'));
@@ -33,13 +46,7 @@ export const loadAttendance = createAsyncThunk('app/loadAttendance', () => api('
 export const loadRainfall = createAsyncThunk('app/loadRainfall', () => api('/api/rainfall'));
 export const loadYield = createAsyncThunk('app/loadYield', () => api('/api/yield'));
 export const loadResource = createAsyncThunk('app/loadResource', (resource: string) => api(`/api/${resource}`).then(data => ({ resource, data })));
-export const saveResource = createAsyncThunk('app/saveResource', async ({ resource, payload }: any, { dispatch }) => {
-  const idKey = Object.keys(payload || {}).find(k => k.endsWith('_id') && payload[k]);
-  const method = idKey ? 'PATCH' : 'POST';
-  const path = idKey ? `/api/${resource}/${payload[idKey]}` : `/api/${resource}`;
-  await api(path, { method, body: JSON.stringify(payload) });
-  dispatch(loadResource(resource)); dispatch(loadMeta()); dispatch(loadDashboard());
-});
+export const saveResource = createAsyncThunk('app/saveResource', async ({ resource, payload }: any, { dispatch }) => { await api(`/api/${resource}`, { method: 'POST', body: JSON.stringify(payload) }); dispatch(loadResource(resource)); dispatch(loadMeta()); dispatch(loadDashboard()); });
 export const deleteResource = createAsyncThunk('app/deleteResource', async ({ resource, id }: any, { dispatch }) => { await api(`/api/${resource}/${id}`, { method: 'DELETE' }); dispatch(loadResource(resource)); dispatch(loadMeta()); dispatch(loadDashboard()); });
 export const createAttendance = createAsyncThunk('app/createAttendance', async (payload: any, { dispatch }) => { await api('/api/attendance', { method: 'POST', body: JSON.stringify(payload) }); dispatch(loadAttendance()); dispatch(loadDashboard()); });
 export const createRainfall = createAsyncThunk('app/createRainfall', async (payload: any, { dispatch }) => { await api('/api/rainfall', { method: 'POST', body: JSON.stringify(payload) }); dispatch(loadRainfall()); dispatch(loadDashboard()); });

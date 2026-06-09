@@ -8,7 +8,6 @@ export const resources = {
   wages: { table: 'wage', id: 'wage_id', order: 'wage_id DESC', propertyMode: 'global', allowed: ['wage_fixed','wage_variable','wage_fix_code','wage_ot_perhr_price','labor_id','created_by','modified_by'] },
   wageSettlements: { table: 'wage_settlement', id: 'running_wage_id', order: 'running_wage_transaction_date DESC', propertyMode: 'global', allowed: ['wage_id','settled_amount','advance_amount','running_wage_transaction_date','created_by','modified_by'] },
   plants: { table: 'plantdetails', id: 'plant_id', order: 'plant_type', propertyMode: 'viaBlock', allowed: ['plant_type','details','block_id','plantdetailscol','created_by','modified_by'] },
-  plantInventory: { table: 'plant_inventory', id: 'plant_inventory_id', order: 'plant_inventory_id DESC', propertyMode: 'direct', allowed: ['property_id','block_id','sub_block_name','plant_id','plant_count','planting_date','notes','created_by','modified_by'] },
   yieldTypes: { table: 'yieldtype', id: 'yieldtype_id', order: 'yieldtype_name', propertyMode: 'viaPlant', allowed: ['yieldtype_name','plant_id','created_by','modified_by'] },
   yieldRates: { table: 'yieldrate', id: 'yieldrate_id', order: 'yieldrate_id DESC', propertyMode: 'viaPlant', allowed: ['plant_id','yieldtype_id','yieldrate_code','yieldrate_running_rate','baseunit_id','created_by','modified_by'] },
   assets: { table: 'currentasset', id: 'currentasset_id', order: 'asset_name', propertyMode: 'direct', allowed: ['asset_name','asset_price','procured_year','isactive','property_id','asset_procured_source','created_by','modified_by'] },
@@ -22,7 +21,7 @@ export const resources = {
 };
 
 export function applyProperty(resource, payload, propertyId) {
-  if (['blocks','assets','expenses','cropDetails','fertilizers','reports','plantInventory'].includes(resource)) {
+  if (['blocks','assets','expenses','cropDetails','fertilizers','reports'].includes(resource)) {
     return { ...payload, property_id: Number(payload.property_id || propertyId) };
   }
   return payload;

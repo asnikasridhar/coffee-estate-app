@@ -35,8 +35,3 @@ INSERT INTO yieldrate VALUES (1,1,1,'ARA_CO_TODAYDATE',2300.00,1,'2025-10-11 00:
 INSERT INTO yieldtype VALUES (1,'fruit',1,'2025-10-11 00:00:00','sys',NULL,NULL),(2,'parchment',1,'2025-10-11 00:00:00','sys',NULL,NULL);
 
 PRAGMA foreign_keys = ON;
-
-INSERT INTO plant_inventory (property_id, block_id, sub_block_name, plant_id, plant_count, planting_date, notes, created_by) VALUES
-(1, 1, 'Main row A', 2, 1800, '2021-06-15', 'Sample inventory for Manjushree Block A', 'seed'),
-(1, 3, 'North patch', 1, 1200, '2020-07-10', 'Sample inventory for Manjushree Block B', 'seed'),
-(1, 5, 'Sub block nursery', 3, 650, '2023-08-20', 'Sample inventory for sub block', 'seed');
