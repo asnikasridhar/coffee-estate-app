@@ -12,3 +12,91 @@
 .loginWrap{background:linear-gradient(135deg,rgba(20,42,25,.55),rgba(246,241,231,.68)),url('/estate-images/estate-road.jpg') center/cover fixed no-repeat}.loginCard{backdrop-filter:blur(8px);background:rgba(255,253,247,.94)}.estatePhotoHero{min-height:260px;align-items:flex-end;background:linear-gradient(90deg,rgba(20,42,25,.88),rgba(20,42,25,.42),rgba(20,42,25,.1)),url('/estate-images/estate-hills.jpg') center/cover no-repeat;color:#fff}.estatePhotoHero h2,.estatePhotoHero .eyebrow{color:#fff}.estatePhotoHero p{color:#eef6e8}.estatePhotoHero .eyebrow{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.24)}
 #root .imageGrid.estateGallery{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}#root .imageGrid.estateGallery figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 10px 24px #2b1f0f12}#root .imageGrid.estateGallery img{height:190px;object-fit:cover;padding:0;border:0;border-radius:0;display:block}#root .imageGrid.estateGallery figcaption{padding:11px 13px;font-weight:850;color:#334b32;background:#fffdf7}.chartPanel:nth-child(2){background:linear-gradient(180deg,rgba(255,253,248,.95),rgba(255,248,236,.94)),url('/estate-images/coffee-shade.jpg') center/cover no-repeat}.chartPanel:nth-child(3){background:linear-gradient(180deg,rgba(255,253,248,.95),rgba(255,248,236,.94)),url('/estate-images/rainfall-sprinkler.jpg') center/cover no-repeat}
 @media(max-width:900px){.loginWrap{background-attachment:scroll}.estatePhotoHero{min-height:220px;background-position:center}.imageGrid.estateGallery img{height:170px}}
+
+
+/* Dashboard card fit fix - keeps tooltip/date controls inside cards on laptop and desktop */
+.statPanel {
+  padding: 24px 28px;
+  overflow: visible;
+}
+
+.statTop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+  padding-right: 0;
+}
+
+.statTop .infoTip,
+.panelTitle .infoTip {
+  position: static !important;
+  right: auto !important;
+  top: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+  flex: 0 0 22px;
+  z-index: 2;
+}
+
+.rangeControls {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 8px;
+}
+
+.rangeControls strong,
+.rangeControls label,
+.rangeControls small {
+  min-width: 0;
+}
+
+.rangeControls input[type="date"] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
+  padding: 9px 8px;
+  line-height: 1.2;
+}
+
+.infoTip:hover::after,
+.infoTip:focus::after {
+  right: -2px;
+  max-width: min(260px, calc(100vw - 36px));
+}
+
+/* Four cards fit only on truly wide screens. Laptop stays at 3 columns for breathing room. */
+@media (min-width: 1500px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(300px, 1fr));
+  }
+}
+
+@media (min-width: 1760px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(300px, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .statPanel {
+    padding: 22px 24px;
+  }
+}
+
+@media (max-width: 760px) {
+  .statTop {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .rangeControls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rangeControls input[type="date"] {
+    font-size: 14px;
+    padding: 11px 12px;
+  }
+}
