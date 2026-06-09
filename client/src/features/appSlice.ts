@@ -2,7 +2,7 @@ import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 export const resources = [
   'properties','blocks','labors','vendors','laborVendors','vendorSettlements','wages','wageSettlements',
-  'plants','yieldTypes','yieldRates','assets','expenseTypes','expenses','cropDetails','cropIncome','fertilizers','reports','baseUnits'
+  'plants','plantInventory','yieldTypes','yieldRates','assets','expenseTypes','expenses','cropDetails','cropIncome','fertilizers','reports','baseUnits'
 ];
 
 const savedUser = localStorage.getItem('estateUser');
@@ -47,6 +47,7 @@ export const loadRainfall = createAsyncThunk('app/loadRainfall', () => api('/api
 export const loadYield = createAsyncThunk('app/loadYield', () => api('/api/yield'));
 export const loadResource = createAsyncThunk('app/loadResource', (resource: string) => api(`/api/${resource}`).then(data => ({ resource, data })));
 export const saveResource = createAsyncThunk('app/saveResource', async ({ resource, payload }: any, { dispatch }) => { await api(`/api/${resource}`, { method: 'POST', body: JSON.stringify(payload) }); dispatch(loadResource(resource)); dispatch(loadMeta()); dispatch(loadDashboard()); });
+export const updateResource = createAsyncThunk('app/updateResource', async ({ resource, id, payload }: any, { dispatch }) => { await api(`/api/${resource}/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }); dispatch(loadResource(resource)); dispatch(loadMeta()); dispatch(loadDashboard()); });
 export const deleteResource = createAsyncThunk('app/deleteResource', async ({ resource, id }: any, { dispatch }) => { await api(`/api/${resource}/${id}`, { method: 'DELETE' }); dispatch(loadResource(resource)); dispatch(loadMeta()); dispatch(loadDashboard()); });
 export const createAttendance = createAsyncThunk('app/createAttendance', async (payload: any, { dispatch }) => { await api('/api/attendance', { method: 'POST', body: JSON.stringify(payload) }); dispatch(loadAttendance()); dispatch(loadDashboard()); });
 export const createRainfall = createAsyncThunk('app/createRainfall', async (payload: any, { dispatch }) => { await api('/api/rainfall', { method: 'POST', body: JSON.stringify(payload) }); dispatch(loadRainfall()); dispatch(loadDashboard()); });

@@ -100,3 +100,17 @@
     padding: 11px 12px;
   }
 }
+
+
+/* Plant inventory dashboard pie charts */
+.plantPieWrap{display:grid;grid-template-columns:minmax(160px,230px) 1fr;gap:18px;align-items:center}
+.plantPieWrap svg{width:100%;max-width:230px;filter:drop-shadow(0 6px 16px rgba(71,47,21,.12))}
+.pieSlice{stroke:#fff;stroke-width:.8;transition:transform .15s ease,opacity .15s ease;transform-origin:50% 50%;cursor:pointer}
+.pieSlice:hover{transform:scale(1.035);opacity:.9}
+.slice0{fill:#6f4e37}.slice1{fill:#a47148}.slice2{fill:#8f9779}.slice3{fill:#c9a66b}.slice4{fill:#5f8d4e}.slice5{fill:#b56576}.slice6{fill:#607d8b}.slice7{fill:#d08c60}
+.pieLegend{display:grid;gap:8px}
+.legendRow{display:grid;grid-template-columns:16px 1fr auto;gap:8px;align-items:center;padding:7px 9px;border:1px solid #eadfc8;border-radius:12px;background:#fffdf8}
+.legendSwatch{width:14px;height:14px;border-radius:50%;display:inline-block}
+.actions{display:flex;gap:8px;align-items:center}
+.secondary{background:#f5eddf!important;color:#4c351f!important;border:1px solid #d8c8ad!important}
+@media(max-width:800px){.plantPieWrap{grid-template-columns:1fr}.plantPieWrap svg{max-width:190px;margin:auto}}
