@@ -6,14 +6,6 @@ export async function onRequestPost({ request, env }) {
     const username = b.username || b.user_name || b.email;
     const password = b.password;
     if (!username || !password) return json({ error: 'Username and password required' }, 400);
-
-    if (['guest','viewer','demo guest'].includes(String(username).toLowerCase()) && password === 'guest123') {
-      return json({
-        token: 'guest-viewer-token',
-        user: { user_id: 0, username: 'Guest Viewer', email: 'guest@example.com', role: 'viewer' },
-        properties: []
-      });
-    }
     const user = await env.DB.prepare(
       `SELECT user_id, username, email, role, password FROM users
        WHERE COALESCE(is_active,1) = 1 AND (lower(username)=lower(?) OR lower(COALESCE(email,''))=lower(?)) LIMIT 1`

@@ -10,6 +10,7 @@ import dashboardRoutes from './routes/dashboard.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import rainfallRoutes from './routes/rainfall.routes.js';
 import yieldRoutes from './routes/yield.routes.js';
+import plantInventoryRoutes from './routes/plantInventory.routes.js';
 import crudRoutes from './routes/crud.routes.js';
 
 export function createApp() {
@@ -31,6 +32,8 @@ export function createApp() {
   app.use('/api/attendance', attendanceRoutes);
   app.use('/api/rainfall', rainfallRoutes);
   app.use('/api/yield', yieldRoutes);
+  app.use('/api/plantInventory', plantInventoryRoutes);
+  app.use('/api/plant-inventory', plantInventoryRoutes);
   app.use('/api', crudRoutes);
 
   app.use((err, _req, res, _next) => {
