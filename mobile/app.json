@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Estate App",
+    "slug": "estate-manager-mobile-sdk54",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "sdkVersion": "54.0.0",
+    "android": { "package": "com.estate.manager.mobile" }
+  }
+}

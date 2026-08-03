@@ -9,10 +9,11 @@ import './styles.css';
 const today = new Date().toISOString().slice(0,10);
 const nav = [
   ['Dashboard','dashboard'], ['Attendance','attendance'], ['Rainfall','rainfall'], ['Yield Entry','yield'],
-  ['Estate Setup','setup'], ['People & Vendors','people'], ['Labor Money','laborMoney'], ['Crop & Market','crop'], ['Expenses & Income','finance'], ['Inventory','inventory'], ['Reports','reports'], ['Images','images']
+  ['Estate Setup','setup'], ['Work','work'], ['People & Vendors','people'], ['Labor Money','laborMoney'], ['Crop & Market','crop'], ['Expenses & Income','finance'], ['Inventory','inventory'], ['Reports','reports'], ['Images','images']
 ];
 const groups: Record<string, string[]> = {
   setup: ['properties','blocks','plants','plantInventory','baseUnits'],
+  work: ['workActivities','workAssignments'],
   people: ['labors','vendors','laborVendors'],
   laborMoney: ['wages','wageSettlements','vendorSettlements'],
   crop: ['yieldTypes','yieldRates','cropDetails','fertilizers'],
@@ -21,7 +22,7 @@ const groups: Record<string, string[]> = {
   reports: ['reports']
 };
 const labels: Record<string,string> = {
-  properties:'Properties', blocks:'Blocks', labors:'Employees / Labors', vendors:'Vendors', laborVendors:'Labor Vendor Mapping', vendorSettlements:'Labor Vendor Settlement', wages:'Labor Wage Settings', wageSettlements:'Running Wage Settlement', plants:'Plant Details', plantInventory:'Plant Inventory by Block/Sub-block', yieldTypes:'Yield Types', yieldRates:'Yield Rates / Market Price', assets:'Inventory / Assets', expenseTypes:'Expense Types', expenses:'Running Expenses', cropDetails:'Crop Details', cropIncome:'Income / Revenue', fertilizers:'Fertilizers', reports:'Manual Reports', baseUnits:'Base Units'
+  properties:'Properties', blocks:'Blocks', labors:'Employees / Labors', vendors:'Vendors', laborVendors:'Labor Vendor Mapping', vendorSettlements:'Labor Vendor Settlement', wages:'Labor Wage Settings', wageSettlements:'Running Wage Settlement', plants:'Plant Details', plantInventory:'Plant Inventory by Block/Sub-block', yieldTypes:'Yield Types', yieldRates:'Yield Rates / Market Price', assets:'Inventory / Assets', expenseTypes:'Expense Types', expenses:'Running Expenses', cropDetails:'Crop Details', cropIncome:'Income / Revenue', fertilizers:'Fertilizers', reports:'Manual Reports', baseUnits:'Base Units', workActivities:'Work Activity Master', workAssignments:'Work Assignments'
 };
 const fieldConfig: Record<string, any[]> = {
   properties:[['property_name','text','Property name'],['total_acre','number','Total acre'],['address_1','text','Address 1'],['address_2','text','Address 2'],['pincode','text','Pincode'],['user_id','select','Manager/User','users','user_id','user_name']],
@@ -34,6 +35,8 @@ const fieldConfig: Record<string, any[]> = {
   wageSettlements:[['wage_id','select','Wage','wages','wage_id','wage_label'],['settled_amount','number','Settled amount'],['advance_amount','number','Advance amount'],['running_wage_transaction_date','date','Date']],
   plants:[['plant_type','text','Plant type'],['details','text','Details'],['block_id','select','Block','blocks','block_id','block_name',true]],
   plantInventory:[['block_id','select','Block','blocks','block_id','block_name'],['sub_block_name','text','Sub-block / section name'],['plant_id','select','Plant type','plants','plant_id','plant_type'],['plant_count','number','Plant count'],['planting_date','date','Planting date'],['spacing','text','Spacing'],['status','select','Status','plantStatusOptions','id','name'],['notes','text','Notes']],
+  workActivities:[['work_activity_name','text','Work activity name'],['work_activity_type','text','Work activity type'],['notes','text','Notes']],
+  workAssignments:[['work_date','date','Work date'],['work_activity_id','select','Work activity','workActivities','work_activity_id','work_activity_name'],['labor_id','select','Labour with attendance','labors','labor_id','labor_name'],['block_id','select','Block','blocks','block_id','block_name'],['notes','text','Notes']],
   yieldTypes:[['yieldtype_name','text','Yield type'],['plant_id','select','Plant','plants','plant_id','plant_type']],
   yieldRates:[['plant_id','select','Plant','plants','plant_id','plant_type'],['yieldtype_id','select','Yield type','yieldTypes','yieldtype_id','yieldtype_name'],['yieldrate_code','text','Rate code / season'],['yieldrate_running_rate','number','Rate'],['baseunit_id','select','Unit','baseUnits','baseunit_id','baseunit_name']],
   assets:[['asset_name','text','Asset name'],['asset_price','number','Price'],['procured_year','number','Year'],['isactive','number','Active 1/0'],['property_id','select','Property','properties','property_id','property_name'],['asset_procured_source','text','Source']],
@@ -140,6 +143,7 @@ function Dashboard({data}:{data:any}){
       <StatPanel prefix="assets" label="Assets" value={`₹${Number(data.assets?.value || 0).toFixed(2)}`} tip="Total active inventory or asset value linked to this property." />
       <StatPanel prefix="profit" label="Profit estimate" value={`₹${profit.toFixed(2)}`} tip="Income minus recorded expenses. Use as an estimate until all expenses are entered." />
       <StatPanel prefix="plants" label="Plant count" value={data.plantInventoryTotal?.total_plants || 0} sub={`Entries: ${data.plantInventoryTotal?.entries || 0}`} tip="Total plants entered in Plant Inventory for the selected property." />
+      <StatPanel prefix="work" label="Work assigned" value={data.workAssignmentTotal?.entries || 0} sub={`Labour: ${data.workAssignmentTotal?.labor_count || 0}`} tip="Daily work activity assignments for labour already present in attendance." />
     </section>
     <div className="chartGrid">
       <ChartPanel title="Financial mix" tip="Bar lengths compare income, expenses, labor cost and profit estimate. Hover rows for exact values."><MiniBars rows={chartRows} suffix=" ₹"/></ChartPanel>
@@ -148,7 +152,9 @@ function Dashboard({data}:{data:any}){
       <ChartPanel title="Plants by block" tip="Pie chart showing plant count by block. Hover each pie slice to see count and percentage."><PlantPieChart rows={plantByBlock}/></ChartPanel>
       <ChartPanel title="Plants by sub-block" tip="Pie chart showing plant count by sub-block/section within the selected property. Hover for exact count."><PlantPieChart rows={plantBySubBlock}/></ChartPanel>
       <ChartPanel title="Plants by type" tip="Pie chart showing Arabica/Robusta/other plant type distribution for the selected property."><PlantPieChart rows={plantByType}/></ChartPanel>
+      <ChartPanel title="Work by activity" tip="Shows how many labourers were assigned to each work activity."><MiniBars rows={(data.workByActivity || []).map((r:any)=>({label:r.work_activity_name || 'Activity', value:Number(r.labor_count || 0)}))} suffix=" labour"/></ChartPanel>
     </div>
+    <section className="panel"><div className="panelTitle"><RangeControls prefix="work" label="Work activity report range"/><InfoTip text="Grouped by date, work activity and block. Labour can be assigned only if attendance exists for that date and property."/></div><Table rows={data.workActivityReport}/></section>
     <section className="panel"><div className="panelTitle"><RangeControls prefix="recent" label="Recent attendance range"/><InfoTip text="Shows most recent attendance records for the chosen property."/></div><Table rows={data.recentAttendance}/></section>
     <section className="panel"><div className="panelTitle"><RangeControls prefix="rainfall" label="Rain by block range"/><InfoTip text="Block-wise rainfall is restricted to the selected property."/></div><Table rows={data.rainByBlock}/></section>
     <section className="panel"><div className="panelTitle"><RangeControls prefix="profit" label="Income / expense range"/><InfoTip text="Income and expenses used for the profit estimate."/></div><Table rows={data.propertyProfit}/></section>

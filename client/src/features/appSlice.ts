@@ -2,7 +2,7 @@ import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 export const resources = [
   'properties','blocks','labors','vendors','laborVendors','vendorSettlements','wages','wageSettlements',
-  'plants','plantInventory','yieldTypes','yieldRates','assets','expenseTypes','expenses','cropDetails','cropIncome','fertilizers','reports','baseUnits'
+  'plants','plantInventory','workActivities','workAssignments','yieldTypes','yieldRates','assets','expenseTypes','expenses','cropDetails','cropIncome','fertilizers','reports','baseUnits'
 ];
 
 const savedUser = localStorage.getItem('estateUser');

@@ -25,6 +25,11 @@ CREATE INDEX IF NOT EXISTS idx_plant_inventory_property ON plant_inventory(prope
 CREATE INDEX IF NOT EXISTS idx_plant_inventory_block ON plant_inventory(block_id);
 CREATE INDEX IF NOT EXISTS idx_plant_inventory_plant ON plant_inventory(plant_id);
 
+-- Existing uploaded DB already has plant_inventory but may not have these newer columns.
+-- These ALTER statements are handled by run-migration.js; it ignores duplicate-column errors.
+ALTER TABLE plant_inventory ADD COLUMN spacing TEXT;
+ALTER TABLE plant_inventory ADD COLUMN status TEXT DEFAULT 'active';
+
 -- Optional seed: only inserts when plant_inventory is empty.
 INSERT INTO plant_inventory (property_id, block_id, sub_block_name, plant_id, plant_count, planting_date, spacing, status, notes, created_by)
 SELECT

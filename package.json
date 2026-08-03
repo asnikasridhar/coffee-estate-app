@@ -5,10 +5,12 @@
   "description": "Coffee Estate Phase 1 app: labor cost, yield, and rainfall tracking.",
   "scripts": {
     "build": "cd client && npm install && npm run build",
-    "install:all": "npm install --prefix server && npm install --prefix client",
+    "install:all": "npm install --prefix server && npm install --prefix client && npm install --prefix mobile",
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
     "seed": "npm run seed --prefix server",
-    "start": "npm run start --prefix server"
+    "start": "npm run start --prefix server",
+    "dev:mobile": "npm run dev --prefix server",
+    "mobile": "npm run start --prefix mobile"
   },
   "devDependencies": {
     "wrangler": "^3.114.17",

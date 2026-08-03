@@ -24,7 +24,9 @@ router.get('/', asyncHandler((req, res) => {
     yieldRates: rows(`SELECT yr.yieldrate_id, yr.yieldtype_id, yr.yieldrate_running_rate AS rate, yr.yieldrate_code AS season, yr.baseunit_id, bu.baseunit_name, yt.yieldtype_name FROM yieldrate yr LEFT JOIN baseunit bu ON bu.baseunit_id = yr.baseunit_id LEFT JOIN yieldtype yt ON yt.yieldtype_id = yr.yieldtype_id LEFT JOIN plantdetails pd ON pd.plant_id = yr.plant_id LEFT JOIN blocks b ON b.block_id = pd.block_id ${propertyId ? 'WHERE b.property_id = @propertyId' : ''} ORDER BY yr.yieldrate_code DESC, yr.yieldrate_id DESC`, { propertyId }),
     wages: rows(`SELECT w.wage_id, l.name || ' - ' || w.wage_fix_code AS wage_label FROM wage w JOIN labors l ON l.labor_id = w.labor_id ORDER BY w.wage_id DESC`),
     laborVendors: rows(`SELECT lv.laborvendor_id, l.name || ' / ' || v.vendorname || ' / ' || lv.laborvendorcode AS labor_vendor_label FROM laborvendor lv JOIN labors l ON l.labor_id = lv.labor_id JOIN vendor v ON v.vendor_id = lv.vendor_id ORDER BY lv.laborvendor_id DESC`),
-    cropDetails: rows(`SELECT crop_id, 'Crop #' || crop_id || ' - ' || COALESCE(yield_obtained,0) || ' units' AS crop_label FROM cropdetails ${propertyFilter} ORDER BY crop_id DESC`, { propertyId })
+    cropDetails: rows(`SELECT crop_id, 'Crop #' || crop_id || ' - ' || COALESCE(yield_obtained,0) || ' units' AS crop_label FROM cropdetails ${propertyFilter} ORDER BY crop_id DESC`, { propertyId }),
+    workActivities: rows(`SELECT work_activity_id, work_activity_name, work_activity_type, property_id FROM work_activity ${propertyFilter} ORDER BY work_activity_name`, { propertyId }),
+    attendanceLabors: rows(`SELECT DISTINCT l.labor_id, l.name AS labor_name, a.property_id, date(a.entry_date) AS entry_date FROM attendance a JOIN labors l ON l.labor_id = a.labor_id ${propertyId ? 'WHERE a.property_id = @propertyId' : ''} ORDER BY date(a.entry_date) DESC, l.name LIMIT 500`, { propertyId })
   });
 }));
 

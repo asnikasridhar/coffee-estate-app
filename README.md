@@ -95,3 +95,49 @@ npm run seed
 ## Cloudflare direction
 
 The app is local Express + SQLite for easy testing. For Cloudflare Pages/D1, keep the React app and move API routes to Pages Functions or Workers, replacing `better-sqlite3` calls with D1 prepared statements.
+
+## Mobile app added - Expo SDK 54
+
+This ZIP now contains three parts:
+
+```text
+client/   Existing React web app
+server/   Existing Express + SQLite backend
+mobile/   New Expo React Native app, SDK 54
+```
+
+### Run backend
+
+```bash
+npm install --prefix server
+npm run seed --prefix server
+npm run dev --prefix server
+```
+
+Backend URL on laptop:
+
+```text
+http://localhost:8787
+```
+
+### Run mobile
+
+```bash
+cd mobile
+npm install
+npx expo start -c
+```
+
+Open Expo Go on Android and scan the QR code.
+
+In the mobile login screen, set Backend API URL to your laptop IP, for example:
+
+```text
+http://192.168.1.5:8787
+```
+
+Laptop and phone must be on the same Wi-Fi. If LAN does not work, run:
+
+```bash
+npx expo start --tunnel
+```
