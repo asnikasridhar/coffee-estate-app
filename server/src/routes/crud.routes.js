@@ -18,6 +18,13 @@ function scopedSelect(resource, cfg, userId, propertyId) {
   return rows(`${base} ORDER BY ${cfg.order} LIMIT 500`);
 }
 
+function normalizePayload(resource, payload) {
+  if (resource === 'blocks' && payload.parent_block_id === '') {
+    return { ...payload, parent_block_id: null };
+  }
+  return payload;
+}
+
 router.get('/:resource', asyncHandler((req, res) => {
   const cfg = resources[req.params.resource];
   if (!cfg) return res.status(404).json({ error: 'Unknown resource' });
@@ -37,6 +44,7 @@ router.post('/:resource', asyncHandler((req, res) => {
   let payload = { ...pick(req.body, cfg.allowed), created_by: req.body.created_by || 'Admin' };
   if (req.params.resource === 'properties') payload.user_id = userId || payload.user_id;
   payload = applyProperty(req.params.resource, payload, propertyId);
+  payload = normalizePayload(req.params.resource, payload);
 
   const result = insert(cfg.table, payload);
   res.status(201).json(row(`SELECT * FROM ${cfg.table} WHERE ${cfg.id} = ?`, [result.lastInsertRowid]));
@@ -45,7 +53,8 @@ router.post('/:resource', asyncHandler((req, res) => {
 router.patch('/:resource/:id', asyncHandler((req, res) => {
   const cfg = resources[req.params.resource];
   if (!cfg) return res.status(404).json({ error: 'Unknown resource' });
-  update(cfg.table, cfg.id, req.params.id, pick(req.body, cfg.allowed));
+  const payload = normalizePayload(req.params.resource, pick(req.body, cfg.allowed));
+  update(cfg.table, cfg.id, req.params.id, payload);
   res.json(row(`SELECT * FROM ${cfg.table} WHERE ${cfg.id} = ?`, [req.params.id]));
 }));
 
