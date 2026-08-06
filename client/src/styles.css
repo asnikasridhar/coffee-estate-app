@@ -30,13 +30,20 @@
 
 .statTop .infoTip,
 .panelTitle .infoTip {
-  position: static !important;
+  position: relative !important;
   right: auto !important;
   top: auto !important;
   transform: none !important;
   margin: 0 !important;
   flex: 0 0 22px;
   z-index: 2;
+}
+
+.statTop .infoTip:hover,
+.statTop .infoTip:focus,
+.panelTitle .infoTip:hover,
+.panelTitle .infoTip:focus {
+  z-index: 100;
 }
 
 .rangeControls {
