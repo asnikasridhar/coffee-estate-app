@@ -6,6 +6,16 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "sdkVersion": "54.0.0",
-    "android": { "package": "com.estate.manager.mobile" }
+    "android": {
+      "package": "com.estate.manager.mobile"
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ef956e66-703e-4ce8-a09d-717f26a6eeef"
+      }
+    }
   }
 }
