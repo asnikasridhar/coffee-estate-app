@@ -10,6 +10,7 @@ const SOFT = '#f7f4ec';
 const LINE = '#e3ddcf';
 const WEATHER_API_KEY = process.env.EXPO_PUBLIC_WEATHER_API_KEY || '0a3c56cb73b74ef5802121513261008';
 const WEATHER_LOCATION = process.env.EXPO_PUBLIC_WEATHER_LOCATION || 'bengaluru';
+const PRODUCTION_API_BASE = 'https://coffee-estate-app.pages.dev/api';
 const FAVORITES_KEY = 'estate-app-favorite-modules';
 const QUICK_ACTIONS = [
   ['Attendance','✅','attendanceQuick'],['Rain','🌧️','rainfallQuick'],['Expense','💵','expenses'],['Labour','👷','labors'],
@@ -37,6 +38,12 @@ const labels = {
 };
 
 const resourceOf = { attendanceQuick: 'attendance', rainfallQuick: 'rainfall', yieldQuick: 'yield' };
+const requiredFields = {
+  attendanceQuick: ['labor_id','entry_date','attendance_value'],
+  workAssignments: ['work_date','work_activity_id','labor_id','block_id'],
+  rainfallQuick: ['block_id','recorded_date','rain_value'],
+  yieldQuick: ['yieldrate_id','picking_date','quantity']
+};
 
 const fieldConfig = {
   properties:[['property_name','text','Property Name'],['total_acre','number','Total Area / Acres'],['address_1','text','Village / Address'],['address_2','text','Taluk / District'],['pincode','text','Pincode']],
@@ -58,12 +65,12 @@ const fieldConfig = {
   vendorSettlements:[['laborvendor_id','select','Vendor Labour','laborVendors','laborvendor_id','labor_vendor_label'],['settled_amount','number','Settled Amount'],['advance_amount','number','Advance Amount'],['running_wage_transaction_date','date','Date']],
   attendanceQuick:[['labor_id','select','Labour','labors','labor_id','name'],['entry_date','date','Date'],['attendance_value','select','Attendance','attendanceOptions','id','name']],
   rainfallQuick:[['block_id','select','Block','blocks','block_id','block_name'],['recorded_date','date','Date'],['rain_value','number','Rain mm']],
-  yieldQuick:[['yieldrate_id','select','Yield Rate','yieldRates','yieldrate_id','yieldtype_name'],['picking_date','date','Picking Date'],['quantity','number','Quantity']],
+  yieldQuick:[['yieldrate_id','select','Yield Rate / Crop','yieldRates','yieldrate_id','yield_rate_label'],['picking_date','date','Picking Date'],['quantity','number','Quantity']],
   expenses:[['expensetype_id','select','Expense Type','expenseTypes','expensetype_id','expense_name'],['property_id','select','Property','properties','property_id','property_name'],['expense_code','text','Code / Notes'],['expense_occurence_date','date','Date'],['other_expense','number','Amount']],
   workActivities:[['work_activity_name','text','Work Activity Name'],['work_activity_type','text','Type'],['notes','text','Notes']],
   workAssignments:[['work_date','date','Work Date'],['work_activity_id','select','Work Activity','workActivities','work_activity_id','work_activity_name'],['labor_id','select','Labour','labors','labor_id','name'],['block_id','select','Block','blocks','block_id','block_name'],['notes','text','Notes']],
   reports:[['total_expenditure','number','Total Expenditure'],['total_revenue','number','Total Revenue'],['profit_loss','number','Profit / Loss'],['property_id','select','Property','properties','property_id','property_name']],
-  settings:[['apiBase','text','Backend API URL']]
+  settings:[]
 };
 
 const readResources = ['properties','blocks','baseUnits','assets','plants','plantInventory','yieldTypes','yieldRates','cropDetails','cropIncome','fertilizers','labors','vendors','laborVendors','wages','wageSettlements','vendorSettlements','expenseTypes','expenses','workActivities','workAssignments','reports'];
@@ -104,6 +111,23 @@ function itemTitle(row) {
   return row.property_name || row.block_name || row.name || row.vendorname || row.plant_type || row.work_activity_name || row.expense_name || row.baseunit_name || row.asset_name || row.yieldtype_name || row.fertilizer_name || row.labor_name || row.crop_label || `Record #${row.id || row[Object.keys(row).find(k => k.endsWith('_id'))] || ''}`;
 }
 
+function rowId(row) {
+  const key = Object.keys(row || {}).find(item => item.endsWith('_id'));
+  return key ? row[key] : null;
+}
+
+function optionLabel(option, preferredKey) {
+  return option?.[preferredKey] || option?.assignment_label || option?.yield_rate_label || option?.labor_name || option?.name || option?.property_name || option?.block_name || option?.plant_type || option?.work_activity_name || option?.vendorname || option?.expense_name || option?.yieldtype_name || option?.baseunit_name || option?.crop_label || '';
+}
+
+function normalizedName(value) {
+  return String(value || '').trim().toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function profitTotal(dashboard) {
+  return Number(dashboard?.profit?.total ?? dashboard?.profit ?? 0);
+}
+
 function friendlyError(error) {
   const message = error?.message || String(error || 'Something went wrong');
   if (/must have attendance/i.test(message)) return 'Attendance is required first. Record this labourer’s attendance for the selected property and work date, then create the work assignment.';
@@ -113,8 +137,8 @@ function friendlyError(error) {
 }
 
 export default function App() {
-  const defaultApiBase = process.env.EXPO_PUBLIC_API_URL || (Platform.OS === 'android' ? 'http://10.0.2.2:8787' : 'http://localhost:8787');
-  const [apiBase, setApiBase] = useState(defaultApiBase);
+  const defaultApiBase = process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_BASE;
+  const apiBase = defaultApiBase;
   const [user, setUser] = useState(null);
   const [propertyId, setPropertyId] = useState('');
   const [meta, setMeta] = useState({});
@@ -136,7 +160,8 @@ export default function App() {
   });
 
   async function request(path, options = {}) {
-    const url = `${apiBase.replace(/\/$/, '')}${path}`;
+    const apiPath = path.replace(/^\/api(?=\/|$)/, '');
+    const url = `${apiBase.replace(/\/$/, '')}${apiPath.startsWith('/') ? apiPath : `/${apiPath}`}`;
     const res = await fetch(url, { ...options, headers: { ...headers(), ...(options.headers || {}) } });
     const text = await res.text();
     let body = null;
@@ -188,7 +213,7 @@ export default function App() {
     await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(limited));
   }
 
-  if (!user) return <Login apiBase={apiBase} setApiBase={setApiBase} onLogin={login} loading={loading} error={error} />;
+  if (!user) return <Login onLogin={login} loading={loading} error={error} />;
 
   const openModule = (key) => { setActiveModule(key); setScreen(key === 'dashboardReport' ? 'reports' : 'module'); };
 
@@ -202,15 +227,15 @@ export default function App() {
       {screen === 'add' && <QuickAdd openModule={openModule} />}
       {screen === 'modules' && <Modules openModule={openModule} />}
       {screen === 'reports' && <Reports dashboard={dashboard} data={data} openModule={openModule} />}
-      {screen === 'more' && <More apiBase={apiBase} setApiBase={setApiBase} user={user} onLogout={() => setUser(null)} openModule={openModule} />}
-      {screen === 'module' && <ModuleScreen moduleKey={activeModule} apiBase={apiBase} setApiBase={setApiBase} user={user} propertyId={propertyId} data={data} setData={setData} meta={meta} request={request} reload={loadAll} />}
+      {screen === 'more' && <More user={user} onLogout={() => setUser(null)} openModule={openModule} />}
+      {screen === 'module' && <ModuleScreen moduleKey={activeModule} user={user} propertyId={propertyId} data={data} setData={setData} meta={meta} request={request} reload={loadAll} />}
     </ScrollView>
     <FavoriteEditor visible={favoriteEditorOpen} favorites={favorites} setFavorites={updateFavorites} close={() => setFavoriteEditorOpen(false)} />
     <BottomNav screen={screen} setScreen={setScreen} />
   </SafeAreaView>;
 }
 
-function Login({ apiBase, setApiBase, onLogin, loading, error }) {
+function Login({ onLogin, loading, error }) {
   const [username, setUsername] = useState('owner');
   const [password, setPassword] = useState('owner123');
   return <SafeAreaView style={styles.loginPage}>
@@ -221,8 +246,6 @@ function Login({ apiBase, setApiBase, onLogin, loading, error }) {
         <Text style={styles.loginTitle}>Estate App</Text>
         <Text style={styles.loginSub}>Simple • Smart • For Estate Owners</Text>
         <View style={styles.loginCard}>
-          <FieldText label="Backend API URL" value={apiBase} onChangeText={setApiBase} placeholder="http://192.168.1.5:8787" returnKeyType="next" />
-          <Text style={styles.note}>Use laptop IP in Expo Go. Do not use localhost on mobile.</Text>
           <FieldText label="Username / Email" value={username} onChangeText={setUsername} returnKeyType="next" />
           <FieldText label="Password" value={password} onChangeText={setPassword} secureTextEntry returnKeyType="done" onSubmitEditing={() => onLogin(username, password)} />
           {!!error && <Text style={styles.error}>{error}</Text>}
@@ -340,7 +363,7 @@ function WeatherHero() {
 
 function Home({ dashboard, data, openModule, favorites, editFavorites }) {
   const summary = [
-    ['Workers', dashboard?.attendance?.entries || data.labors?.length || 0, '👥'], ['Rain Today', `${dashboard?.rainfall?.total || 0} mm`, '🌧️'], ['Plants', dashboard?.plantInventoryTotal?.total_plants || 0, '🌱'], ['Profit', `₹${dashboard?.profit || 0}`, '💰']
+    ['Workers', dashboard?.attendance?.entries || data.labors?.length || 0, '👥'], ['Rain Today', `${dashboard?.rainfall?.total || 0} mm`, '🌧️'], ['Plants', dashboard?.plantInventoryTotal?.total_plants || 0, '🌱'], ['Net Profit', `₹${profitTotal(dashboard).toLocaleString('en-IN')}`, '💰']
   ];
   return <View>
     <WeatherHero />
@@ -378,18 +401,19 @@ function Modules({ openModule }) {
 
 function Reports({ dashboard, data, openModule }) {
   const reportCards = [
-    ['Rainfall Report', `${dashboard?.rainfall?.total || 0} mm`, '🌧️', 'rainfallQuick'], ['Expense Report', `₹${dashboard?.expenses?.total || 0}`, '💵', 'expenses'], ['Labour Report', `${dashboard?.attendance?.labor_days || 0} days`, '👥', 'attendanceQuick'], ['Plant Report', `${dashboard?.plantInventoryTotal?.total_plants || 0}`, '🌱', 'plantInventory'], ['Work Report', `${dashboard?.workAssignmentTotal?.entries || 0}`, '🧑‍🌾', 'workAssignments'], ['Profit Report', `₹${dashboard?.profit || 0}`, '📊', 'reports']
+    ['Rainfall Report', `${dashboard?.rainfall?.total || 0} mm`, '🌧️', 'rainfallQuick'], ['Expense Report', `₹${dashboard?.expenses?.total || 0}`, '💵', 'expenses'], ['Labour Report', `${dashboard?.attendance?.labor_days || 0} days`, '👥', 'attendanceQuick'], ['Plant Report', `${dashboard?.plantInventoryTotal?.total_plants || 0}`, '🌱', 'plantInventory'], ['Work Report', `${dashboard?.workAssignmentTotal?.entries || 0}`, '🧑‍🌾', 'workAssignments'], ['Profit Report', `₹${profitTotal(dashboard).toLocaleString('en-IN')}`, '📊', 'reports']
   ];
   return <View><Text style={styles.screenTitle}>Reports</Text><View style={styles.grid}>{reportCards.map(r => <TouchableOpacity key={r[0]} style={styles.reportCard} onPress={() => openModule(r[3])}><Text style={styles.statIcon}>{r[2]}</Text><Text style={styles.reportValue}>{r[1]}</Text><Text style={styles.statLabel}>{r[0]}</Text></TouchableOpacity>)}</View><Section title="Recent Attendance"><RecordList rows={data.attendance || []} /></Section><Section title="Plant Distribution"><RecordList rows={dashboard?.plantByType || data.plantInventory || []} /></Section></View>;
 }
 
-function More({ apiBase, setApiBase, user, onLogout, openModule }) {
-  return <View><Text style={styles.screenTitle}>More</Text><View style={styles.card}><Text style={styles.sectionTitle}>API Settings</Text><FieldText label="Backend API URL" value={apiBase} onChangeText={setApiBase} /><Text style={styles.note}>Logged in as {user?.username}</Text><TouchableOpacity style={styles.secondary} onPress={onLogout}><Text style={styles.secondaryText}>Logout</Text></TouchableOpacity></View><Section title="Secure & Reliable"><IconGrid items={[['Offline First Ready','📴','settings'],['Multi Language Ready','🌐','settings'],['Backup / Restore','💾','settings'],['Notifications','🔔','notifications']]} openModule={openModule} /></Section></View>;
+function More({ user, onLogout, openModule }) {
+  return <View><Text style={styles.screenTitle}>More</Text><View style={styles.card}><Text style={styles.sectionTitle}>Account</Text><Text style={styles.note}>Logged in as {user?.username}</Text><TouchableOpacity style={styles.secondary} onPress={onLogout}><Text style={styles.secondaryText}>Logout</Text></TouchableOpacity></View><Section title="Secure & Reliable"><IconGrid items={[['Offline First Ready','📴','settings'],['Multi Language Ready','🌐','settings'],['Backup / Restore','💾','settings'],['Notifications','🔔','notifications']]} openModule={openModule} /></Section></View>;
 }
 
-function ModuleScreen({ moduleKey, apiBase, setApiBase, user, propertyId, data, setData, meta, request, reload }) {
+function ModuleScreen({ moduleKey, user, propertyId, data, setData, meta, request, reload }) {
   const endpoint = resourceOf[moduleKey] || moduleKey;
   const [form, setForm] = useState(defaultForm(moduleKey, propertyId));
+  const [editingId, setEditingId] = useState(null);
   const rows = data[endpoint] || data[moduleKey] || [];
   const [fromDate, setFromDate] = useState(yesterdayDate());
   const [toDate, setToDate] = useState(isoDate());
@@ -397,49 +421,80 @@ function ModuleScreen({ moduleKey, apiBase, setApiBase, user, propertyId, data, 
   const pageSize = 10;
   const parentBlocks = moduleKey === 'plantInventory' ? (data.blocks || []).filter(block => !block.parent_block_id) : [];
   const subBlocks = moduleKey === 'plantInventory' && form.block_id ? (data.blocks || []).filter(block => String(block.parent_block_id) === String(form.block_id)) : [];
+  const laborOptions = data.labors?.length ? data.labors : (meta.labors || []);
+  const laborIdForAttendance = item => {
+    if (item?.labor_id != null) return String(item.labor_id);
+    const attendanceName = normalizedName(item?.labor_name || item?.name);
+    const labor = laborOptions.find(candidate => normalizedName(candidate.name || candidate.labor_name) === attendanceName);
+    return labor?.labor_id != null ? String(labor.labor_id) : '';
+  };
+  const attendedLaborIds = moduleKey === 'workAssignments' ? new Set((data.attendance || []).filter(item => String(item.entry_date || '').slice(0,10) === String(form.work_date || '').slice(0,10)).map(laborIdForAttendance).filter(Boolean)) : new Set();
+  const availableAssignmentLabors = moduleKey === 'workAssignments' ? laborOptions.map(item => ({ ...item, assignment_label: `${item.name || item.labor_name || `Labour #${item.labor_id}`} — ${attendedLaborIds.has(String(item.labor_id)) ? 'attendance recorded' : 'attendance missing'}` })) : [];
   const fields = (fieldConfig[moduleKey] || []).map(field => {
     if (field[0] === 'block_id' && parentBlocks.length) return ['block_id','select','Block','availableParentBlocks','block_id','block_name'];
     if (field[0] === 'sub_block_name' && subBlocks.length) return ['sub_block_name','select','Sub-block / Section','availableSubBlocks','block_name','block_name',true];
+    if (field[0] === 'labor_id' && moduleKey === 'workAssignments') return ['labor_id','select','Labour','availableAssignmentLabors','labor_id','assignment_label'];
     return field;
   });
-  const fieldData = moduleKey === 'plantInventory' ? { ...data, availableParentBlocks: parentBlocks, availableSubBlocks: subBlocks } : data;
-  const hasDateFilter = Boolean(DATE_FIELDS[moduleKey] || rows.some(row => recordDate(row, moduleKey)));
+  const fieldData = { ...data, availableParentBlocks: parentBlocks, availableSubBlocks: subBlocks, availableAssignmentLabors };
+  const hasDateFilter = Boolean(DATE_FIELDS[moduleKey]);
   const filteredRows = hasDateFilter ? rows.filter(row => { const date = recordDate(row,moduleKey); return date && date >= fromDate && date <= toDate; }) : rows;
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const visibleRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
 
-  useEffect(() => { setForm(defaultForm(moduleKey, propertyId)); setFromDate(yesterdayDate()); setToDate(isoDate()); setPage(1); }, [moduleKey, propertyId]);
+  useEffect(() => { setForm(defaultForm(moduleKey, propertyId)); setEditingId(null); setFromDate(yesterdayDate()); setToDate(isoDate()); setPage(1); }, [moduleKey, propertyId]);
   useEffect(() => { if (page > pageCount) setPage(pageCount); }, [pageCount]);
 
   async function save() {
     if (moduleKey === 'settings') return Alert.alert('Saved', 'API settings updated.');
     const payload = { ...form, property_id: form.property_id || propertyId, user_id: user.user_id, created_by: user.username };
+    const missingField = fields.find(([key]) => (requiredFields[moduleKey] || []).includes(key) && (form[key] == null || String(form[key]).trim() === ''));
+    if (missingField) return Alert.alert('Required field', `Select or enter ${missingField[2]} before saving.`);
+    if (moduleKey === 'attendanceQuick' && !optionSets.attendanceOptions.some(item => String(item.id) === String(form.attendance_value))) return Alert.alert('Attendance required', 'Select Full Day, Half Day, Absent, Hourly, or another attendance value before saving.');
+    if (moduleKey === 'workAssignments' && !attendedLaborIds.has(String(form.labor_id))) return Alert.alert('Attendance required', 'The selected labourer does not have attendance for this property and work date. Save attendance first, then return to Work Assignment.');
     try {
-      await request(`/api/${endpoint}`, { method:'POST', body: JSON.stringify(payload) });
+      await request(`/api/${endpoint}${editingId ? `/${editingId}` : ''}`, { method: editingId ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
       setForm(defaultForm(moduleKey, propertyId));
+      const wasEditing = Boolean(editingId);
+      setEditingId(null);
       await reload();
-      Alert.alert('Saved', `${labels[moduleKey]} saved.`);
+      Alert.alert(wasEditing ? 'Updated' : 'Saved', `${labels[moduleKey]} ${wasEditing ? 'updated' : 'saved'}.`);
     } catch (error) { Alert.alert('Could not save', friendlyError(error)); }
   }
   async function remove(row) {
-    const idKey = Object.keys(row).find(k => k.endsWith('_id'));
-    if (!idKey || ['attendance','rainfall','yield'].includes(endpoint)) return Alert.alert('Info', 'Delete is available for master/resource modules only.');
-    Alert.alert('Delete?', itemTitle(row), [{text:'Cancel'}, {text:'Delete', style:'destructive', onPress: async () => { await request(`/api/${endpoint}/${row[idKey]}`, { method:'DELETE' }); await reload(); }}]);
+    const id = rowId(row);
+    if (!id) return Alert.alert('Info', 'This record cannot be deleted because its identifier is missing.');
+    Alert.alert('Delete?', itemTitle(row), [{text:'Cancel'}, {text:'Delete', style:'destructive', onPress: async () => { try { await request(`/api/${endpoint}/${id}`, { method:'DELETE' }); await reload(); } catch (error) { Alert.alert('Could not delete', friendlyError(error)); } }}]);
+  }
+
+  function edit(row) {
+    const id = rowId(row);
+    if (!id) return Alert.alert('Info', 'This record cannot be edited because its identifier is missing.');
+    const next = defaultForm(moduleKey, propertyId);
+    fields.forEach(([key]) => {
+      let value = row[key];
+      if (value == null && key === 'recorded_date') value = row.date_time;
+      if (value == null && key === 'picking_date') value = row.yield_settlement_date;
+      if (value != null) next[key] = key.includes('date') ? String(value).slice(0,10) : String(value);
+    });
+    setForm(next);
+    setEditingId(id);
   }
 
   if (moduleKey === 'notifications') return <View><Text style={styles.screenTitle}>Notifications</Text><Section title="Today"><Suggestion danger text="Heavy rain expected tomorrow." /><Suggestion warning text="Wage sheet generated for today." /><Suggestion warning text="Expense limit crossed this month." /><Suggestion text="New labour added: Ramesh." /></Section></View>;
   if (moduleKey === 'dashboardReport') return <Reports dashboard={data.dashboard} data={data} openModule={()=>{}} />;
 
-  return <View><Text style={styles.screenTitle}>{labels[moduleKey]}</Text><View style={styles.card}>{fields.map(f => <SmartField key={f[0]} field={f} value={moduleKey==='settings' && f[0]==='apiBase' ? apiBase : form[f[0]]} setValue={(v) => moduleKey==='settings' && f[0]==='apiBase' ? setApiBase(v) : setForm(f[0] === 'block_id' && moduleKey === 'plantInventory' ? {...form,block_id:v,sub_block_name:''} : {...form,[f[0]]:v})} meta={meta} data={fieldData} />)}<TouchableOpacity style={styles.primary} onPress={save}><Text style={styles.primaryText}>Save</Text></TouchableOpacity></View><Section title="Records" right={`${filteredRows.length} entries`}>{hasDateFilter && <DateRangeFilter fromDate={fromDate} toDate={toDate} setFromDate={value => { setFromDate(value); setPage(1); }} setToDate={value => { setToDate(value); setPage(1); }} />}<RecordList rows={visibleRows} moduleKey={moduleKey} data={data} meta={meta} onDelete={remove} /><Pagination page={page} pageCount={pageCount} setPage={setPage} /></Section></View>;
+  return <View><Text style={styles.screenTitle}>{labels[moduleKey]}</Text><View style={styles.card}>{editingId && <Text style={styles.editingBanner}>Editing record #{editingId}</Text>}{fields.map(f => <SmartField key={f[0]} field={f} value={form[f[0]]} setValue={(v) => setForm(f[0] === 'block_id' && moduleKey === 'plantInventory' ? {...form,block_id:v,sub_block_name:''} : {...form,[f[0]]:v})} meta={meta} data={fieldData} />)}{moduleKey === 'workAssignments' && form.work_date && !attendedLaborIds.size && <Text style={styles.inlineWarning}>No matching attendance is loaded for {form.work_date}. Labourers remain visible below; records without attendance cannot be assigned.</Text>}<TouchableOpacity style={styles.primary} onPress={save}><Text style={styles.primaryText}>{editingId ? 'Update' : 'Save'}</Text></TouchableOpacity>{editingId && <TouchableOpacity style={styles.secondary} onPress={() => { setForm(defaultForm(moduleKey, propertyId)); setEditingId(null); }}><Text style={styles.secondaryText}>Cancel edit</Text></TouchableOpacity>}</View><Section title="Records" right={`${filteredRows.length} entries`}>{hasDateFilter && <DateRangeFilter fromDate={fromDate} toDate={toDate} setFromDate={value => { setFromDate(value); setPage(1); }} setToDate={value => { setToDate(value); setPage(1); }} />}<RecordList rows={visibleRows} moduleKey={moduleKey} data={data} meta={meta} onEdit={edit} onDelete={remove} /><Pagination page={page} pageCount={pageCount} setPage={setPage} /></Section></View>;
 }
 
 function SmartField({ field, value, setValue, meta, data }) {
   const [open, setOpen] = useState(false);
   const [key, type, label, source, idKey, nameKey, optional] = field;
   if (type !== 'select') return <FieldText label={label} value={String(value ?? '')} onChangeText={setValue} keyboardType={type === 'number' ? 'numeric' : 'default'} placeholder={type === 'date' ? 'YYYY-MM-DD' : label} />;
-  const opts = optionSets[source] || data[source] || meta[source] || [];
+  const rawOpts = optionSets[source] || (meta[source]?.length ? meta[source] : data[source]) || [];
+  const opts = rawOpts.filter((option,index,list) => list.findIndex(candidate => String(candidate?.[idKey]) === String(option?.[idKey])) === index);
   const selected = opts.find(o => String(o[idKey]) === String(value));
-  return <View style={{marginBottom:12}}><Text style={styles.label}>{label}{optional ? ' (optional)' : ''}</Text><TouchableOpacity style={styles.inputButton} onPress={() => setOpen(true)}><Text style={selected ? styles.inputText : styles.placeholder}>{selected ? (selected[nameKey] || selected[idKey]) : `Select ${label}`}</Text></TouchableOpacity><Modal visible={open} transparent animationType="slide"><View style={styles.modalBack}><View style={styles.modalCard}><Text style={styles.modalTitle}>{label}</Text><ScrollView>{optional && <TouchableOpacity style={styles.option} onPress={() => { setValue(''); setOpen(false); }}><Text>None</Text></TouchableOpacity>}{opts.map(o => <TouchableOpacity key={String(o[idKey])} style={styles.option} onPress={() => { setValue(String(o[idKey])); setOpen(false); }}><Text style={styles.optionText}>{o[nameKey] || o[idKey]}</Text><Text style={styles.optionSub}>ID: {o[idKey]}</Text></TouchableOpacity>)}</ScrollView><TouchableOpacity style={styles.secondary} onPress={() => setOpen(false)}><Text style={styles.secondaryText}>Close</Text></TouchableOpacity></View></View></Modal></View>;
+  return <View style={{marginBottom:12}}><Text style={styles.label}>{label}{optional ? ' (optional)' : ''}</Text><TouchableOpacity style={styles.inputButton} onPress={() => setOpen(true)}><Text style={selected ? styles.inputText : styles.placeholder}>{selected ? (optionLabel(selected,nameKey) || selected[idKey]) : `Select ${label}`}</Text></TouchableOpacity><Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><View style={styles.modalBack}><View style={styles.modalCard}><Text style={styles.modalTitle}>{label}</Text><ScrollView>{optional && <TouchableOpacity style={styles.option} onPress={() => { setValue(''); setOpen(false); }}><Text>None</Text></TouchableOpacity>}{opts.map((o,index) => <TouchableOpacity key={`select-${source}-${String(o[idKey])}-${index}`} style={styles.option} onPress={() => { setValue(String(o[idKey])); setOpen(false); }}><Text style={styles.optionText}>{optionLabel(o,nameKey) || o[idKey]}</Text></TouchableOpacity>)}</ScrollView><TouchableOpacity style={styles.secondary} onPress={() => setOpen(false)}><Text style={styles.secondaryText}>Close</Text></TouchableOpacity></View></View></Modal></View>;
 }
 
 function DateRangeFilter({ fromDate, toDate, setFromDate, setToDate }) {
@@ -479,7 +534,7 @@ function Pagination({ page, pageCount, setPage }) {
 const referenceFields = {
   labor_id:['labors','labor_id','name','Labour'], block_id:['blocks','block_id','block_name','Block'], property_id:['properties','property_id','property_name','Property'],
   work_activity_id:['workActivities','work_activity_id','work_activity_name','Activity'], plant_id:['plants','plant_id','plant_type','Plant'], vendor_id:['vendors','vendor_id','vendorname','Vendor'],
-  expensetype_id:['expenseTypes','expensetype_id','expense_name','Expense type'], yieldtype_id:['yieldTypes','yieldtype_id','yieldtype_name','Yield type']
+  expensetype_id:['expenseTypes','expensetype_id','expense_name','Expense type'], yieldtype_id:['yieldTypes','yieldtype_id','yieldtype_name','Yield type'], yieldrate_id:['yieldRates','yieldrate_id','yield_rate_label','Yield rate']
 };
 
 function recordDetails(row, data, meta) {
@@ -487,7 +542,7 @@ function recordDetails(row, data, meta) {
     if (referenceFields[key]) {
       const [source,idKey,nameKey,label] = referenceFields[key];
       const match = (data[source] || meta[source] || []).find(item => String(item[idKey]) === String(value));
-      return [label, match?.[nameKey] || `Unknown (${value})`];
+      return [label, optionLabel(match,nameKey) || `Unknown (${value})`];
     }
     if (key.endsWith('_id')) return null;
     const label = key.replaceAll('_',' ').replace(/\b\w/g, letter => letter.toUpperCase());
@@ -498,8 +553,8 @@ function recordDetails(row, data, meta) {
 function FieldText({ label, value, onChangeText, ...props }) { return <View style={{marginBottom:12}}><Text style={styles.label}>{label}</Text><TextInput style={styles.input} value={value} onChangeText={onChangeText} autoCapitalize="none" placeholderTextColor="#9c9a91" {...props} /></View>; }
 function Section({ title, right, children }) { return <View style={styles.card}><View style={styles.sectionHead}><Text style={styles.sectionTitle}>{title}</Text>{right && <Text style={styles.sectionRight}>{right}</Text>}</View>{children}</View>; }
 function Suggestion({ text, danger, warning }) { return <View style={styles.suggestion}><Text>{danger ? '🔴' : warning ? '🟠' : '🟢'}</Text><Text style={styles.suggestionText}>{text}</Text></View>; }
-function IconGrid({ items, openModule, onMore }) { return <View style={styles.iconGrid}>{items.map(([t,ic,key]) => <TouchableOpacity key={key} style={styles.iconTile} onPress={() => key === 'favorites' ? onMore?.() : openModule(key)}><Text style={styles.icon}>{ic}</Text><Text style={styles.iconLabel}>{t}</Text></TouchableOpacity>)}</View>; }
-function RecordList({ rows = [], empty = 'No records in this period.', moduleKey, data = {}, meta = {}, onDelete }) { if (!rows?.length) return <Text style={styles.muted}>{empty}</Text>; return <View>{rows.map((r,i) => { const details = recordDetails(r,data,meta); const preferredTitle = r.labor_name || r.work_activity_name || r.block_name || r.property_name || r.name || details.find(([label]) => ['Labour','Activity','Block','Plant','Vendor'].includes(label))?.[1] || itemTitle(r); return <View key={r[Object.keys(r).find(k => k.endsWith('_id'))] || i} style={styles.record}><View style={{flex:1}}><Text style={styles.recordTitle}>{preferredTitle}</Text>{details.map(([label,value]) => <View key={label} style={styles.recordDetail}><Text style={styles.recordLabel}>{label}</Text><Text style={styles.recordValue}>{String(value)}</Text></View>)}</View>{onDelete && <TouchableOpacity accessibilityLabel="Delete record" onPress={() => onDelete(r)}><Text style={styles.delete}>🗑️</Text></TouchableOpacity>}</View>; })}</View>; }
+function IconGrid({ items, openModule, onMore }) { return <View style={styles.iconGrid}>{items.map(([t,ic,key],index) => <TouchableOpacity key={`${key}-${t}-${index}`} style={styles.iconTile} onPress={() => key === 'favorites' ? onMore?.() : openModule(key)}><Text style={styles.icon}>{ic}</Text><Text style={styles.iconLabel}>{t}</Text></TouchableOpacity>)}</View>; }
+function RecordList({ rows = [], empty = 'No records in this period.', moduleKey, data = {}, meta = {}, onEdit, onDelete }) { if (!rows?.length) return <Text style={styles.muted}>{empty}</Text>; return <View>{rows.map((r,i) => { const details = recordDetails(r,data,meta); const preferredTitle = r.labor_name || r.work_activity_name || r.block_name || r.property_name || r.name || details.find(([label]) => ['Labour','Activity','Block','Plant','Vendor'].includes(label))?.[1] || itemTitle(r); return <View key={`${rowId(r) || 'row'}-${i}`} style={styles.record}><View style={{flex:1}}><Text style={styles.recordTitle}>{preferredTitle}</Text>{details.map(([label,value],detailIndex) => <View key={`detail-${label}-${detailIndex}`} style={styles.recordDetail}><Text style={styles.recordLabel}>{label}</Text><Text style={styles.recordValue}>{String(value)}</Text></View>)}</View><View style={styles.recordActions}>{onEdit && <TouchableOpacity accessibilityLabel="Edit record" onPress={() => onEdit(r)}><Text style={styles.edit}>✏️</Text></TouchableOpacity>}{onDelete && <TouchableOpacity accessibilityLabel="Delete record" onPress={() => onDelete(r)}><Text style={styles.delete}>🗑️</Text></TouchableOpacity>}</View></View>; })}</View>; }
 function BottomNav({ screen, setScreen }) { const nav = [['home','Home','🏠'],['add','Add','＋'],['modules','Modules','📋'],['reports','Reports','📊'],['more','More','☰']]; return <View style={styles.bottom}>{nav.map(n => <TouchableOpacity key={n[0]} style={styles.navItem} onPress={() => setScreen(n[0])}><Text style={[styles.navIcon, screen===n[0] && styles.navActive]}>{n[2]}</Text><Text style={[styles.navText, screen===n[0] && styles.navActive]}>{n[1]}</Text></TouchableOpacity>)}</View>; }
 
 const styles = StyleSheet.create({
@@ -512,9 +567,9 @@ const styles = StyleSheet.create({
   weather:{width:168,backgroundColor:'#c88315',borderRadius:18,padding:14,marginBottom:12}, weatherRain:{backgroundColor:'#126247'}, weatherTop:{color:'#fff',fontWeight:'900'}, temp:{color:'#fff',fontWeight:'900',fontSize:28,marginVertical:10}, weatherSub:{color:'#fff',fontSize:12}, weatherFoot:{flexDirection:'row',justifyContent:'space-between',marginTop:14}, weatherMoney:{color:'#fff',fontWeight:'800',fontSize:11}, grid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginBottom:12}, stat:{width:'47.8%',backgroundColor:'#fffdf8',borderWidth:1,borderColor:LINE,borderRadius:16,padding:14}, statIcon:{fontSize:22}, statValue:{fontSize:20,fontWeight:'900',color:GREEN,marginTop:6}, statLabel:{fontSize:12,color:'#5d675f',fontWeight:'700'}, reportCard:{width:'47.8%',backgroundColor:'#fffdf8',borderWidth:1,borderColor:LINE,borderRadius:16,padding:14}, reportValue:{fontSize:17,fontWeight:'900',color:DARK,marginVertical:4},
   iconGrid:{flexDirection:'row',flexWrap:'wrap',gap:10}, iconTile:{width:'30.6%',alignItems:'center',paddingVertical:12,borderWidth:1,borderColor:LINE,borderRadius:14,backgroundColor:'#fff'}, icon:{fontSize:23}, iconLabel:{fontSize:11,textAlign:'center',color:DARK,fontWeight:'700',marginTop:5}, suggestion:{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:7}, suggestionText:{fontSize:13,color:'#37433b'}, moduleRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:12,borderBottomWidth:1,borderBottomColor:'#eee8da'}, moduleName:{fontSize:14,fontWeight:'800',color:DARK}, chev:{fontSize:28,color:GREEN},
   favoriteModal:{backgroundColor:'#fffdf8',borderTopLeftRadius:24,borderTopRightRadius:24,padding:18,maxHeight:'88%'},favoriteHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'},favoriteHint:{fontSize:11,color:'#6f786f',marginTop:-5,marginBottom:10},favoriteList:{paddingBottom:10},favoriteRow:{flexDirection:'row',alignItems:'center',padding:11,borderWidth:1,borderColor:'#ebe7dc',borderRadius:13,marginBottom:7,backgroundColor:'#fff'},favoriteRowActive:{backgroundColor:'#edf7ee',borderColor:'#b8d9bd'},favoriteIcon:{fontSize:20,width:34},favoriteName:{flex:1,fontSize:13,fontWeight:'800',color:DARK},favoriteCheck:{width:28,height:28,borderRadius:9,backgroundColor:'#ecece7',alignItems:'center',justifyContent:'center'},favoriteCheckActive:{backgroundColor:GREEN},favoriteCheckText:{fontSize:16,color:'#fff',fontWeight:'900'},
-  label:{fontSize:12,fontWeight:'800',color:DARK,marginBottom:6}, input:{backgroundColor:'#fff',borderWidth:1,borderColor:LINE,borderRadius:12,paddingHorizontal:12,paddingVertical:11,color:'#222'}, inputButton:{backgroundColor:'#fff',borderWidth:1,borderColor:LINE,borderRadius:12,paddingHorizontal:12,paddingVertical:13}, inputText:{color:'#222'}, placeholder:{color:'#9c9a91'}, primary:{backgroundColor:GREEN,borderRadius:12,paddingVertical:14,alignItems:'center',marginTop:4}, primaryText:{color:'#fff',fontWeight:'900'}, secondary:{borderWidth:1,borderColor:GREEN,borderRadius:12,paddingVertical:12,alignItems:'center',marginTop:8}, secondaryText:{color:GREEN,fontWeight:'900'},
+  label:{fontSize:12,fontWeight:'800',color:DARK,marginBottom:6}, input:{backgroundColor:'#fff',borderWidth:1,borderColor:LINE,borderRadius:12,paddingHorizontal:12,paddingVertical:11,color:'#222'}, inputButton:{backgroundColor:'#fff',borderWidth:1,borderColor:LINE,borderRadius:12,paddingHorizontal:12,paddingVertical:13}, inputText:{color:'#222'}, placeholder:{color:'#9c9a91'}, primary:{backgroundColor:GREEN,borderRadius:12,paddingVertical:14,alignItems:'center',marginTop:4}, primaryText:{color:'#fff',fontWeight:'900'}, secondary:{borderWidth:1,borderColor:GREEN,borderRadius:12,paddingVertical:12,alignItems:'center',marginTop:8}, secondaryText:{color:GREEN,fontWeight:'900'},editingBanner:{backgroundColor:'#e7f3e8',color:GREEN,fontWeight:'900',padding:10,borderRadius:10,marginBottom:12},inlineWarning:{backgroundColor:'#fff2d8',color:'#765010',fontWeight:'700',padding:10,borderRadius:10,marginBottom:10},
   dateFilter:{backgroundColor:'#f4f7f2',borderRadius:13,padding:10,marginBottom:6,borderWidth:1,borderColor:'#dce5da'},dateFilterHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:8},dateFilterTitle:{fontSize:11,fontWeight:'900',color:DARK},dateReset:{fontSize:11,fontWeight:'900',color:GREEN},dateButtons:{flexDirection:'row',alignItems:'center'},dateButton:{flex:1,backgroundColor:'#fff',borderWidth:1,borderColor:'#cbd4ca',borderRadius:10,paddingHorizontal:10,paddingVertical:8},dateButtonLabel:{fontSize:8,fontWeight:'900',color:'#758078'},dateButtonValue:{fontSize:12,fontWeight:'800',color:DARK,marginTop:2},dateArrow:{paddingHorizontal:8,color:GREEN,fontWeight:'900'},pagination:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginTop:12},pageButton:{backgroundColor:'#e7f3e8',borderRadius:10,paddingHorizontal:13,paddingVertical:9},pageDisabled:{opacity:.35},pageButtonText:{fontSize:11,color:GREEN,fontWeight:'900'},pageStatus:{fontSize:11,color:'#687268',fontWeight:'700'},
-  record:{flexDirection:'row',gap:8,backgroundColor:'#fff',borderWidth:1,borderColor:'#eee8da',borderRadius:12,padding:12,marginTop:8},recordTitle:{fontWeight:'900',color:DARK,marginBottom:7,fontSize:14},recordDetail:{flexDirection:'row',justifyContent:'space-between',gap:12,paddingVertical:2},recordLabel:{fontSize:10,color:'#7a827b',flex:1},recordValue:{fontSize:11,color:'#344039',fontWeight:'700',flex:1.4,textAlign:'right'},recordLine:{fontSize:11,color:'#616b63'},delete:{fontSize:19,marginLeft:6},muted:{color:'#777',fontSize:13,paddingVertical:14,textAlign:'center'},
+  record:{flexDirection:'row',gap:8,backgroundColor:'#fff',borderWidth:1,borderColor:'#eee8da',borderRadius:12,padding:12,marginTop:8},recordTitle:{fontWeight:'900',color:DARK,marginBottom:7,fontSize:14},recordDetail:{flexDirection:'row',justifyContent:'space-between',gap:12,paddingVertical:2},recordLabel:{fontSize:10,color:'#7a827b',flex:1},recordValue:{fontSize:11,color:'#344039',fontWeight:'700',flex:1.4,textAlign:'right'},recordLine:{fontSize:11,color:'#616b63'},recordActions:{gap:12,alignItems:'center'},edit:{fontSize:18,marginLeft:6},delete:{fontSize:19,marginLeft:6},muted:{color:'#777',fontSize:13,paddingVertical:14,textAlign:'center'},
   modalBack:{flex:1,backgroundColor:'rgba(0,0,0,.35)',justifyContent:'flex-end'}, modalCard:{backgroundColor:'#fffdf8',borderTopLeftRadius:22,borderTopRightRadius:22,padding:18,maxHeight:'80%'}, modalTitle:{fontSize:18,fontWeight:'900',color:DARK,marginBottom:10}, option:{paddingVertical:12,borderBottomWidth:1,borderBottomColor:'#eee'}, optionText:{fontWeight:'800',color:DARK}, optionSub:{fontSize:11,color:'#777'},
   bottom:{position:'absolute',left:12,right:12,bottom:12,backgroundColor:'#fffdf8',borderRadius:22,borderWidth:1,borderColor:LINE,flexDirection:'row',paddingVertical:8,shadowColor:'#000',shadowOpacity:.12,shadowRadius:10,elevation:8}, navItem:{flex:1,alignItems:'center'}, navIcon:{fontSize:20,color:'#777'}, navText:{fontSize:10,color:'#777',fontWeight:'800'}, navActive:{color:GREEN}
 });

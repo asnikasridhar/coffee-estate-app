@@ -49,5 +49,9 @@ export async function assertPropertyAccess(env, userId, propertyId) {
 export async function all(env, sql, ...params) { const r = await env.DB.prepare(sql).bind(...params).all(); return r.results || []; }
 export async function first(env, sql, ...params) { return await env.DB.prepare(sql).bind(...params).first(); }
 export async function run(env, sql, ...params) { return await env.DB.prepare(sql).bind(...params).run(); }
-export function fail(err, label = 'Request failed') { return json({ error: label, details: err?.message || String(err) }, 500); }
+export function fail(err, label = 'Request failed') {
+  const details = err?.message || String(err);
+  const status = /attendance|required|invalid|constraint|does not belong|not found/i.test(details) ? 400 : 500;
+  return json({ error: details || label, details, context: label }, status);
+}
 export function requiredProperty(propertyId) { if (!propertyId) return json({ error: 'property_id required' }, 400); return null; }
