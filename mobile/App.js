@@ -448,6 +448,7 @@ function ModuleScreen({ moduleKey, user, propertyId, data, setData, meta, reques
   async function save() {
     if (moduleKey === 'settings') return Alert.alert('Saved', 'API settings updated.');
     const payload = { ...form, property_id: form.property_id || propertyId, user_id: user.user_id, created_by: user.username };
+    fields.forEach(([key,type,,,,,optional]) => { if (type === 'select' && optional && payload[key] === '') payload[key] = null; });
     const missingField = fields.find(([key]) => (requiredFields[moduleKey] || []).includes(key) && (form[key] == null || String(form[key]).trim() === ''));
     if (missingField) return Alert.alert('Required field', `Select or enter ${missingField[2]} before saving.`);
     if (moduleKey === 'attendanceQuick' && !optionSets.attendanceOptions.some(item => String(item.id) === String(form.attendance_value))) return Alert.alert('Attendance required', 'Select Full Day, Half Day, Absent, Hourly, or another attendance value before saving.');

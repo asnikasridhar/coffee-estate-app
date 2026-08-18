@@ -49,6 +49,7 @@ const fieldConfig: Record<string, any[]> = {
   baseUnits:[['baseunit_name','text','Unit name']]
 };
 function emptyFor(resource:string){ const f:any = { created_by:'Admin' }; for(const x of fieldConfig[resource] || []) f[x[0]] = x[1] === 'date' ? today : x[1] === 'number' ? '0' : ''; return f; }
+function normalizedForm(resource:string, form:any){ const payload={...form}; for(const field of fieldConfig[resource] || []) if(field[1]==='select' && field[6] && payload[field[0]]==='') payload[field[0]]=null; return payload; }
 const gridColumns: Record<string,string[]> = {
   properties:['property_name','total_acre','address_1','address_2','pincode'],
   blocks:['block_name','property_name','parent_block_name','block_area'],
@@ -218,7 +219,7 @@ function Crud({resource,meta,rows,save,update,remove}:any){
   const startEdit = (r:any) => { setEditing(r[idKey || 'id']); const next:any = emptyFor(resource); for(const field of (fieldConfig[resource] || [])){ if(r[field[0]] !== undefined && r[field[0]] !== null) next[field[0]] = String(r[field[0]]); } setF(next); window.scrollTo({top:0, behavior:'smooth'}); };
   const clearEdit = () => { setEditing(null); setF(emptyFor(resource)); };
   return <>
-    <Form title={`${editing ? 'Edit' : 'Add'} ${labels[resource]}`} onSubmit={()=> editing ? update(resource, editing, f) : save(resource,f)}>
+    <Form title={`${editing ? 'Edit' : 'Add'} ${labels[resource]}`} onSubmit={()=>{ const payload=normalizedForm(resource,f); editing ? update(resource,editing,payload) : save(resource,payload); }}>
       {fields.map((x:any)=> x[1]==='select'
         ? <Select key={x[0]} label={x[2]} v={x[0]} f={f} setF={setF} opts={optionSource(x[3])} id={x[4]} name={x[5]} allowEmpty={x[6]}/>
         : <Input key={x[0]} label={x[2]} type={x[1]} step="0.01" v={x[0]} f={f} setF={setF}/>)}
