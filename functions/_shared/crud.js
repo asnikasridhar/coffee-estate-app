@@ -29,6 +29,12 @@ export const resources = {
 };
 
 function pick(obj, allowed) { const o = {}; for (const k of allowed) if (Object.prototype.hasOwnProperty.call(obj, k)) o[k] = obj[k]; return o; }
+function normalizePayload(resource, payload) {
+  if (resource === 'blocks' && payload.parent_block_id === '') {
+    return { ...payload, parent_block_id: null };
+  }
+  return payload;
+}
 function applyProperty(resource, payload, propertyId, userId) {
   if (resource === 'properties') return { ...payload, user_id: payload.user_id || userId };
   if (['blocks','plantInventory','workActivities','workAssignments','assets','inventory','expenses','cropDetails','fertilizers','reports'].includes(resource)) return { ...payload, property_id: Number(payload.property_id || propertyId) };
@@ -54,7 +60,7 @@ export async function createResource(request, env, resource) {
   const b = await body(request);
   const picked = pick(b, cfg.allowed);
   if (cfg.allowed.includes('created_by')) picked.created_by = b.created_by || 'Admin';
-  let payload = applyProperty(resource, picked, propertyId, userId);
+  let payload = normalizePayload(resource, applyProperty(resource, picked, propertyId, userId));
   const cols = Object.keys(payload).filter(k => payload[k] !== undefined);
   if (!cols.length) return json({ error: 'No valid fields supplied' }, 400);
   const placeholders = cols.map(() => '?').join(',');
@@ -71,7 +77,7 @@ export async function updateResource(request, env, resource, id) {
   const b = await body(request);
   const picked = pick(b, cfg.allowed);
   if (cfg.allowed.includes('modified_by')) picked.modified_by = b.modified_by || 'Admin';
-  let payload = applyProperty(resource, picked, propertyId, userId);
+  let payload = normalizePayload(resource, applyProperty(resource, picked, propertyId, userId));
   const cols = Object.keys(payload).filter(k => payload[k] !== undefined && k !== cfg.id);
   if (!cols.length) return json({ error: 'No valid fields supplied' }, 400);
   await env.DB.prepare(`UPDATE ${cfg.table} SET ${cols.map(c => `${c} = ?`).join(', ')} WHERE ${cfg.id} = ?`).bind(...cols.map(c => payload[c]), id).run();
