@@ -4,13 +4,30 @@
     "slug": "estate-manager-mobile-sdk54",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./logo.png",
     "userInterfaceStyle": "light",
     "sdkVersion": "54.0.0",
     "android": {
-      "package": "com.estate.manager.mobile"
+      "package": "com.estate.manager.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./logo.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "plugins": [
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./logo.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#f7f4ec",
+          "dark": {
+            "backgroundColor": "#f7f4ec"
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

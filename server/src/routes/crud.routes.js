@@ -41,7 +41,8 @@ router.post('/:resource', asyncHandler((req, res) => {
   if (userId) requireOwner(userId);
   if (userId && propertyId) assertPropertyAccess(userId, propertyId);
 
-  let payload = { ...pick(req.body, cfg.allowed), created_by: req.body.created_by || 'Admin' };
+  let payload = pick(req.body, cfg.allowed);
+  if (cfg.allowed.includes('created_by')) payload.created_by = req.body.created_by || 'Admin';
   if (req.params.resource === 'properties') payload.user_id = userId || payload.user_id;
   payload = applyProperty(req.params.resource, payload, propertyId);
   payload = normalizePayload(req.params.resource, payload);
