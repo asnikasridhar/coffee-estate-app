@@ -52,7 +52,9 @@ export async function createResource(request, env, resource) {
   const userId = userIdFromRequest(request); const propertyId = propertyIdFromUrl(request);
   if (propertyId) await assertPropertyAccess(env, userId, propertyId);
   const b = await body(request);
-  let payload = applyProperty(resource, { ...pick(b, cfg.allowed), created_by: b.created_by || 'Admin' }, propertyId, userId);
+  const picked = pick(b, cfg.allowed);
+  if (cfg.allowed.includes('created_by')) picked.created_by = b.created_by || 'Admin';
+  let payload = applyProperty(resource, picked, propertyId, userId);
   const cols = Object.keys(payload).filter(k => payload[k] !== undefined);
   if (!cols.length) return json({ error: 'No valid fields supplied' }, 400);
   const placeholders = cols.map(() => '?').join(',');
@@ -67,7 +69,9 @@ export async function updateResource(request, env, resource, id) {
   const userId = userIdFromRequest(request); const propertyId = propertyIdFromUrl(request);
   if (propertyId) await assertPropertyAccess(env, userId, propertyId);
   const b = await body(request);
-  let payload = applyProperty(resource, { ...pick(b, cfg.allowed), modified_by: b.modified_by || 'Admin' }, propertyId, userId);
+  const picked = pick(b, cfg.allowed);
+  if (cfg.allowed.includes('modified_by')) picked.modified_by = b.modified_by || 'Admin';
+  let payload = applyProperty(resource, picked, propertyId, userId);
   const cols = Object.keys(payload).filter(k => payload[k] !== undefined && k !== cfg.id);
   if (!cols.length) return json({ error: 'No valid fields supplied' }, 400);
   await env.DB.prepare(`UPDATE ${cfg.table} SET ${cols.map(c => `${c} = ?`).join(', ')} WHERE ${cfg.id} = ?`).bind(...cols.map(c => payload[c]), id).run();

@@ -2,16 +2,20 @@
 
 This mobile app talks to the existing Express backend in `../server`.
 
-The app reads `EXPO_PUBLIC_API_URL` at startup. Android Emulator defaults to
-`http://10.0.2.2:8787`; iOS Simulator defaults to `http://localhost:8787`.
-For a physical device, start Expo with your computer's LAN address:
+The app uses the production Cloudflare Pages API by default:
+
+```text
+https://coffee-estate-app.pages.dev/api
+```
+
+For local development, override it before starting Expo:
 
 ```powershell
-$env:EXPO_PUBLIC_API_URL='http://YOUR-LAPTOP-IP:8787'
+$env:EXPO_PUBLIC_API_URL='http://YOUR-LAPTOP-IP:8787/api'
 npm start
 ```
 
-The URL can also be changed from the login or More screen.
+The login screen does not ask users to configure a backend URL.
 
 Live dashboard weather uses WeatherAPI. The included development key can be
 overridden without editing the app:
@@ -52,10 +56,10 @@ Scan the QR code using Expo Go.
 ## Important for Android phone
 
 `localhost` on your phone means the phone itself, not your laptop.
-Use your laptop IP address in the mobile app API URL field, for example:
+Set the environment override to your laptop IP address before starting Expo:
 
 ```text
-http://192.168.1.5:8787
+$env:EXPO_PUBLIC_API_URL='http://192.168.1.5:8787/api'
 ```
 
 Keep laptop and phone on the same Wi-Fi.
