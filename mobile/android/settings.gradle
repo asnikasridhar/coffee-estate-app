@@ -31,7 +31,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = 'Estate App'
+rootProject.name = 'JavaTerrain'
 
 expoAutolinking.useExpoVersionCatalog()
 

@@ -1,17 +1,30 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Image, KeyboardAvoidingView, Modal, Platform, RefreshControl, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, BackHandler, Easing, Image, KeyboardAvoidingView, Linking, Modal, Platform, RefreshControl, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Location from 'expo-location';
 
 const today = new Date().toISOString().slice(0, 10);
-const GREEN = '#0b7a2a';
-const DARK = '#14361f';
-const SOFT = '#f7f4ec';
-const LINE = '#e3ddcf';
+const GREEN = '#8a5527';
+const DARK = '#3f2616';
+const SOFT = '#f5eee3';
+const LINE = '#dfcfba';
 const WEATHER_API_KEY = process.env.EXPO_PUBLIC_WEATHER_API_KEY || '0a3c56cb73b74ef5802121513261008';
-const WEATHER_LOCATION = process.env.EXPO_PUBLIC_WEATHER_LOCATION || 'bengaluru';
 const PRODUCTION_API_BASE = 'https://coffee-estate-app.pages.dev/api';
 const FAVORITES_KEY = 'estate-app-favorite-modules';
+const LANGUAGE_KEY = 'javaterrain-language';
+const LANGUAGES = [
+  ['en','English'],['kn','ಕನ್ನಡ'],['ta','தமிழ்'],['ml','മലയാളം'],['hi','हिन्दी'],['te','తెలుగు']
+];
+const I18N = {
+  en:{today:"TODAY'S ESTATE",attention:'What needs your attention today?',currentProperty:'CURRENT PROPERTY',selectProperty:'Select Property',propertiesAvailable:'properties available',searchProperty:'Search name, village or property ID',home:'Home',add:'Add',modules:'Modules',reports:'Reports',more:'More',login:'Login',connecting:'Connecting…',username:'Username / Email',password:'Password',tagline:'Simple • Smart • For Estate Owners',back:'Back',language:'Language',weatherUnavailable:'Weather unavailable',updatingWeather:'Updating weather…',feelsLike:'Feels like',wind:'Wind',humidity:'Humidity',rain:'Rain',refresh:'Refresh',gpsRequired:'Location services are off. Turn on GPS for accurate local weather.',enableGps:'Turn on GPS',allowLocation:'Allow location',permissionDenied:'Location permission is disabled. Enable it in Settings.',settings:'Settings',quickAdd:'Quick Add',todaysTasks:"Today's Tasks",select:'Select'},
+  kn:{today:'ಇಂದಿನ ಎಸ್ಟೇಟ್',attention:'ಇಂದು ನಿಮ್ಮ ಗಮನಕ್ಕೆ ಏನು ಬೇಕು?',currentProperty:'ಪ್ರಸ್ತುತ ಆಸ್ತಿ',selectProperty:'ಆಸ್ತಿ ಆಯ್ಕೆಮಾಡಿ',propertiesAvailable:'ಆಸ್ತಿಗಳು ಲಭ್ಯ',searchProperty:'ಹೆಸರು, ಊರು ಅಥವಾ ಆಸ್ತಿ ID ಹುಡುಕಿ',home:'ಮುಖಪುಟ',add:'ಸೇರಿಸಿ',modules:'ಮಾಡ್ಯೂಲ್‌ಗಳು',reports:'ವರದಿಗಳು',more:'ಇನ್ನಷ್ಟು',login:'ಲಾಗಿನ್',connecting:'ಸಂಪರ್ಕಿಸಲಾಗುತ್ತಿದೆ…',username:'ಬಳಕೆದಾರ ಹೆಸರು / ಇಮೇಲ್',password:'ಪಾಸ್‌ವರ್ಡ್',tagline:'ಸರಳ • ಚತುರ • ಎಸ್ಟೇಟ್ ಮಾಲೀಕರಿಗಾಗಿ',back:'ಹಿಂದೆ',language:'ಭಾಷೆ',weatherUnavailable:'ಹವಾಮಾನ ಲಭ್ಯವಿಲ್ಲ',updatingWeather:'ಹವಾಮಾನ ನವೀಕರಿಸಲಾಗುತ್ತಿದೆ…',feelsLike:'ಅನುಭವ',wind:'ಗಾಳಿ',humidity:'ಆರ್ದ್ರತೆ',rain:'ಮಳೆ',refresh:'ನವೀಕರಿಸಿ',gpsRequired:'ಸ್ಥಳ ಸೇವೆ ಆಫ್ ಆಗಿದೆ. ಸ್ಥಳೀಯ ಹವಾಮಾನಕ್ಕಾಗಿ GPS ಆನ್ ಮಾಡಿ.',enableGps:'GPS ಆನ್ ಮಾಡಿ',allowLocation:'ಸ್ಥಳ ಅನುಮತಿಸಿ',permissionDenied:'ಸ್ಥಳ ಅನುಮತಿಯನ್ನು Settings ನಲ್ಲಿ ಸಕ್ರಿಯಗೊಳಿಸಿ.',settings:'ಸೆಟ್ಟಿಂಗ್‌ಗಳು',quickAdd:'ತ್ವರಿತ ಸೇರಿಕೆ',todaysTasks:'ಇಂದಿನ ಕೆಲಸಗಳು',select:'ಆಯ್ಕೆ'},
+  ta:{today:'இன்றைய எஸ்டேட்',attention:'இன்று உங்கள் கவனம் எதற்கு?',currentProperty:'தற்போதைய சொத்து',selectProperty:'சொத்தைத் தேர்ந்தெடுக்கவும்',propertiesAvailable:'சொத்துகள் உள்ளன',searchProperty:'பெயர், ஊர் அல்லது சொத்து ID தேடவும்',home:'முகப்பு',add:'சேர்',modules:'தொகுதிகள்',reports:'அறிக்கைகள்',more:'மேலும்',login:'உள்நுழை',connecting:'இணைக்கிறது…',username:'பயனர் பெயர் / மின்னஞ்சல்',password:'கடவுச்சொல்',tagline:'எளிது • புத்திசாலி • எஸ்டேட் உரிமையாளர்களுக்கு',back:'பின்',language:'மொழி',weatherUnavailable:'வானிலை கிடைக்கவில்லை',updatingWeather:'வானிலை புதுப்பிக்கிறது…',feelsLike:'உணர்வு',wind:'காற்று',humidity:'ஈரப்பதம்',rain:'மழை',refresh:'புதுப்பி',gpsRequired:'இருப்பிட சேவை அணைக்கப்பட்டுள்ளது. உள்ளூர் வானிலைக்கு GPS ஐ இயக்கவும்.',enableGps:'GPS இயக்கு',allowLocation:'இருப்பிடத்தை அனுமதி',permissionDenied:'Settings இல் இருப்பிட அனுமதியை இயக்கவும்.',settings:'அமைப்புகள்',quickAdd:'விரைவு சேர்',todaysTasks:'இன்றைய பணிகள்',select:'தேர்வு'},
+  ml:{today:'ഇന്നത്തെ എസ്റ്റേറ്റ്',attention:'ഇന്ന് നിങ്ങളുടെ ശ്രദ്ധ എന്തിന്?',currentProperty:'നിലവിലെ പ്രോപ്പർട്ടി',selectProperty:'പ്രോപ്പർട്ടി തിരഞ്ഞെടുക്കുക',propertiesAvailable:'പ്രോപ്പർട്ടികൾ ലഭ്യമാണ്',searchProperty:'പേര്, ഗ്രാമം അല്ലെങ്കിൽ പ്രോപ്പർട്ടി ID തിരയുക',home:'ഹോം',add:'ചേർക്കുക',modules:'മോഡ്യൂളുകൾ',reports:'റിപ്പോർട്ടുകൾ',more:'കൂടുതൽ',login:'ലോഗിൻ',connecting:'ബന്ധിപ്പിക്കുന്നു…',username:'ഉപയോക്തൃനാമം / ഇമെയിൽ',password:'പാസ്‌വേഡ്',tagline:'ലളിതം • സ്മാർട്ട് • എസ്റ്റേറ്റ് ഉടമകൾക്ക്',back:'പിന്നിലേക്ക്',language:'ഭാഷ',weatherUnavailable:'കാലാവസ്ഥ ലഭ്യമല്ല',updatingWeather:'കാലാവസ്ഥ പുതുക്കുന്നു…',feelsLike:'അനുഭവം',wind:'കാറ്റ്',humidity:'ഈർപ്പം',rain:'മഴ',refresh:'പുതുക്കുക',gpsRequired:'ലൊക്കേഷൻ സേവനം ഓഫ് ആണ്. പ്രാദേശിക കാലാവസ്ഥയ്ക്ക് GPS ഓൺ ചെയ്യുക.',enableGps:'GPS ഓൺ ചെയ്യുക',allowLocation:'ലൊക്കേഷൻ അനുവദിക്കുക',permissionDenied:'Settings ൽ ലൊക്കേഷൻ അനുമതി നൽകുക.',settings:'ക്രമീകരണങ്ങൾ',quickAdd:'വേഗത്തിൽ ചേർക്കുക',todaysTasks:'ഇന്നത്തെ ജോലികൾ',select:'തിരഞ്ഞെടുക്കുക'},
+  hi:{today:'आज का एस्टेट',attention:'आज किस पर ध्यान देना है?',currentProperty:'वर्तमान संपत्ति',selectProperty:'संपत्ति चुनें',propertiesAvailable:'संपत्तियाँ उपलब्ध',searchProperty:'नाम, गाँव या संपत्ति ID खोजें',home:'होम',add:'जोड़ें',modules:'मॉड्यूल',reports:'रिपोर्ट',more:'अधिक',login:'लॉगिन',connecting:'कनेक्ट हो रहा है…',username:'यूज़र नाम / ईमेल',password:'पासवर्ड',tagline:'सरल • स्मार्ट • एस्टेट मालिकों के लिए',back:'पीछे',language:'भाषा',weatherUnavailable:'मौसम उपलब्ध नहीं',updatingWeather:'मौसम अपडेट हो रहा है…',feelsLike:'महसूस',wind:'हवा',humidity:'नमी',rain:'बारिश',refresh:'ताज़ा करें',gpsRequired:'स्थान सेवा बंद है। स्थानीय मौसम के लिए GPS चालू करें।',enableGps:'GPS चालू करें',allowLocation:'स्थान की अनुमति दें',permissionDenied:'Settings में स्थान अनुमति चालू करें।',settings:'सेटिंग्स',quickAdd:'त्वरित जोड़ें',todaysTasks:'आज के कार्य',select:'चुनें'},
+  te:{today:'నేటి ఎస్టేట్',attention:'ఈ రోజు మీ దృష్టి దేనిపై?',currentProperty:'ప్రస్తుత ఆస్తి',selectProperty:'ఆస్తిని ఎంచుకోండి',propertiesAvailable:'ఆస్తులు అందుబాటులో ఉన్నాయి',searchProperty:'పేరు, గ్రామం లేదా ఆస్తి ID వెతకండి',home:'హోమ్',add:'జోడించు',modules:'మాడ్యూల్స్',reports:'నివేదికలు',more:'మరిన్ని',login:'లాగిన్',connecting:'కనెక్ట్ అవుతోంది…',username:'వినియోగదారు పేరు / ఇమెయిల్',password:'పాస్‌వర్డ్',tagline:'సులభం • స్మార్ట్ • ఎస్టేట్ యజమానులకు',back:'వెనుకకు',language:'భాష',weatherUnavailable:'వాతావరణం అందుబాటులో లేదు',updatingWeather:'వాతావరణం నవీకరిస్తోంది…',feelsLike:'అనుభూతి',wind:'గాలి',humidity:'తేమ',rain:'వర్షం',refresh:'నవీకరించు',gpsRequired:'స్థాన సేవ ఆఫ్‌లో ఉంది. స్థానిక వాతావరణం కోసం GPS ఆన్ చేయండి.',enableGps:'GPS ఆన్ చేయండి',allowLocation:'స్థానాన్ని అనుమతించండి',permissionDenied:'Settings లో స్థాన అనుమతిని ఆన్ చేయండి.',settings:'సెట్టింగ్స్',quickAdd:'త్వరిత జోడింపు',todaysTasks:'నేటి పనులు',select:'ఎంచుకోండి'}
+};
+function translator(language){ return key => I18N[language]?.[key] || I18N.en[key] || key; }
 const QUICK_ACTIONS = [
   ['Attendance','✅','attendanceQuick'],['Rain','🌧️','rainfallQuick'],['Expense','💵','expenses'],['Labour','👷','labors'],
   ['Plant / Crop','🌱','plantInventory'],['Wage Sheet','🧾','wageSettlements'],['Harvest','🌾','yieldQuick'],['Blocks','🗺️','blocks'],
@@ -150,6 +163,9 @@ export default function App() {
   const [error, setError] = useState('');
   const [favorites, setFavorites] = useState(DEFAULT_FAVORITES);
   const [favoriteEditorOpen, setFavoriteEditorOpen] = useState(false);
+  const [language, setLanguage] = useState('en');
+  const navigationHistory = useRef([]);
+  const t = translator(language);
 
   const property = (meta.properties || []).find(p => String(p.property_id) === String(propertyId));
 
@@ -182,6 +198,7 @@ export default function App() {
       setUser(result.user);
       setMeta(prev => ({ ...prev, properties: result.properties || [] }));
       if (result.properties?.[0]) setPropertyId(String(result.properties[0].property_id));
+      navigationHistory.current = [];
       setScreen('home');
     });
   }
@@ -206,6 +223,7 @@ export default function App() {
 
   useEffect(() => { if (user && propertyId) loadAll(); }, [user, propertyId]);
   useEffect(() => { AsyncStorage.getItem(FAVORITES_KEY).then(value => { if (value) setFavorites(JSON.parse(value).slice(0, 8)); }).catch(() => {}); }, []);
+  useEffect(() => { AsyncStorage.getItem(LANGUAGE_KEY).then(value => { if (value && I18N[value]) setLanguage(value); }).catch(() => {}); }, []);
 
   async function updateFavorites(next) {
     const limited = next.slice(0, 8);
@@ -213,76 +231,97 @@ export default function App() {
     await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(limited));
   }
 
-  if (!user) return <Login onLogin={login} loading={loading} error={error} />;
+  async function changeLanguage(next) { setLanguage(next); await AsyncStorage.setItem(LANGUAGE_KEY,next); }
+  function navigate(next) { if (next === screen) return; navigationHistory.current.push(screen); setScreen(next); }
+  function goBack() { const previous = navigationHistory.current.pop(); if (previous) setScreen(previous); else if (screen !== 'home') setScreen('home'); }
 
-  const openModule = (key) => { setActiveModule(key); setScreen(key === 'dashboardReport' ? 'reports' : 'module'); };
+  useEffect(() => {
+    if (!user) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (screen === 'home' && !navigationHistory.current.length) return false;
+      goBack(); return true;
+    });
+    return () => subscription.remove();
+  }, [user,screen]);
+
+  if (!user) return <Login onLogin={login} loading={loading} error={error} t={t} language={language} setLanguage={changeLanguage} />;
+
+  const openModule = (key) => { setActiveModule(key); navigate(key === 'dashboardReport' ? 'reports' : 'module'); };
 
   return <SafeAreaView style={styles.safe}>
-    <StatusBar barStyle="dark-content" backgroundColor="#fffdf8" translucent={false} />
-    <Header property={property} user={user} dateLabel={new Intl.DateTimeFormat('en-IN', { day:'numeric', month:'short', weekday:'short' }).format(new Date())} />
-    <PropertyBar properties={meta.properties || []} propertyId={propertyId} setPropertyId={setPropertyId} />
+    <StatusBar barStyle="dark-content" backgroundColor="#f5eee3" translucent={false} />
+    <Header property={property} user={user} dateLabel={new Intl.DateTimeFormat('en-IN', { day:'numeric', month:'short', weekday:'short' }).format(new Date())} screen={screen} onBack={goBack} t={t} language={language} setLanguage={changeLanguage} />
+    <PropertyBar properties={meta.properties || []} propertyId={propertyId} setPropertyId={setPropertyId} t={t} />
     <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={loadAll} />} contentContainerStyle={styles.body}>
       {!!error && <Text style={styles.error}>{error}</Text>}
-      {screen === 'home' && <Home dashboard={dashboard} data={data} openModule={openModule} favorites={favorites} editFavorites={() => setFavoriteEditorOpen(true)} />}
-      {screen === 'add' && <QuickAdd openModule={openModule} />}
-      {screen === 'modules' && <Modules openModule={openModule} />}
-      {screen === 'reports' && <Reports dashboard={dashboard} data={data} openModule={openModule} />}
-      {screen === 'more' && <More user={user} onLogout={() => setUser(null)} openModule={openModule} />}
+      {screen === 'home' && <Home dashboard={dashboard} data={data} openModule={openModule} favorites={favorites} editFavorites={() => setFavoriteEditorOpen(true)} property={property} t={t} />}
+      {screen === 'add' && <QuickAdd openModule={openModule} t={t} />}
+      {screen === 'modules' && <Modules openModule={openModule} t={t} />}
+      {screen === 'reports' && <Reports dashboard={dashboard} data={data} openModule={openModule} t={t} />}
+      {screen === 'more' && <More user={user} onLogout={() => setUser(null)} openModule={openModule} t={t} />}
       {screen === 'module' && <ModuleScreen moduleKey={activeModule} user={user} propertyId={propertyId} data={data} setData={setData} meta={meta} request={request} reload={loadAll} />}
     </ScrollView>
     <FavoriteEditor visible={favoriteEditorOpen} favorites={favorites} setFavorites={updateFavorites} close={() => setFavoriteEditorOpen(false)} />
-    <BottomNav screen={screen} setScreen={setScreen} />
+    <BottomNav screen={screen} setScreen={navigate} t={t} />
   </SafeAreaView>;
 }
 
-function Login({ onLogin, loading, error }) {
+function Login({ onLogin, loading, error, t, language, setLanguage }) {
   const [username, setUsername] = useState('owner');
   const [password, setPassword] = useState('owner123');
   return <SafeAreaView style={styles.loginPage}>
     <StatusBar barStyle="dark-content" backgroundColor="#f3efe4" translucent={false} />
     <KeyboardAvoidingView style={styles.loginKeyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.loginScroll}>
-        <Image source={require('./logo.png')} style={styles.logoImage} accessibilityLabel="Estate App coffee bean logo" />
-        <Text style={styles.loginTitle}>Estate App</Text>
-        <Text style={styles.loginSub}>Simple • Smart • For Estate Owners</Text>
+        <Image source={require('./logo.png')} style={styles.logoImage} accessibilityLabel="JavaTerrain coffee bean logo" />
+        <Text style={styles.loginTitle}>JavaTerrain</Text>
+        <Text style={styles.loginSub}>{t('tagline')}</Text>
+        <LanguagePicker language={language} setLanguage={setLanguage} t={t} compact />
         <View style={styles.loginCard}>
-          <FieldText label="Username / Email" value={username} onChangeText={setUsername} returnKeyType="next" />
-          <FieldText label="Password" value={password} onChangeText={setPassword} secureTextEntry returnKeyType="done" onSubmitEditing={() => onLogin(username, password)} />
+          <FieldText label={t('username')} value={username} onChangeText={setUsername} returnKeyType="next" />
+          <FieldText label={t('password')} value={password} onChangeText={setPassword} secureTextEntry returnKeyType="done" onSubmitEditing={() => onLogin(username, password)} />
           {!!error && <Text style={styles.error}>{error}</Text>}
-          <TouchableOpacity disabled={loading} style={styles.primary} onPress={() => onLogin(username, password)}><Text style={styles.primaryText}>{loading ? 'Connecting…' : 'Login'}</Text></TouchableOpacity>
+          <TouchableOpacity disabled={loading} style={styles.primary} onPress={() => onLogin(username, password)}><Text style={styles.primaryText}>{loading ? t('connecting') : t('login')}</Text></TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   </SafeAreaView>;
 }
 
-function Header({ property, user, dateLabel }) {
+function Header({ property, user, dateLabel, screen, onBack, t, language, setLanguage }) {
   return <View style={styles.header}>
-    <View style={styles.headerCopy}><Text style={styles.smallCaps}>TODAY'S ESTATE</Text><Text style={styles.headerTitle}>What needs your attention today?</Text></View>
-    <View style={styles.headerMeta}><Text style={styles.date}>{dateLabel}</Text><Text numberOfLines={1} style={styles.location}>📍 {property?.property_name || 'Select Property'}</Text><Text numberOfLines={1} style={styles.user}>{user?.username}</Text></View>
+    {screen !== 'home' && <TouchableOpacity style={styles.backButton} onPress={onBack} accessibilityLabel={t('back')}><Text style={styles.backButtonText}>‹</Text></TouchableOpacity>}
+    <View style={styles.headerCopy}><Text style={styles.smallCaps}>{t('today')}</Text><Text style={styles.headerTitle}>{t('attention')}</Text></View>
+    <View style={styles.headerMeta}><Text style={styles.date}>{dateLabel}</Text><Text numberOfLines={1} style={styles.location}>📍 {property?.property_name || t('selectProperty')}</Text><LanguagePicker language={language} setLanguage={setLanguage} t={t} compact /></View>
   </View>;
 }
 
-function PropertyBar({ properties, propertyId, setPropertyId }) {
+function LanguagePicker({ language, setLanguage, t, compact }) {
+  const [open,setOpen] = useState(false);
+  const selected = LANGUAGES.find(([code]) => code === language)?.[1] || 'English';
+  return <><TouchableOpacity style={compact ? styles.languageCompact : styles.secondary} onPress={() => setOpen(true)}><Text style={styles.languageText}>🌐 {selected}</Text></TouchableOpacity><Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><View style={styles.modalBack}><View style={styles.modalCard}><Text style={styles.modalTitle}>{t('language')}: {selected}</Text>{LANGUAGES.map(([code,name]) => <TouchableOpacity key={code} style={[styles.option,code===language && styles.languageActive]} onPress={() => { setLanguage(code); setOpen(false); }}><Text style={styles.optionText}>{code===language?'✓ ':''}{name}</Text></TouchableOpacity>)}<TouchableOpacity style={styles.secondary} onPress={() => setOpen(false)}><Text style={styles.secondaryText}>{t('back')}</Text></TouchableOpacity></View></View></Modal></>;
+}
+
+function PropertyBar({ properties, propertyId, setPropertyId, t }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const selected = properties.find(p => String(p.property_id) === String(propertyId));
   const filtered = properties.filter(p => `${p.property_name} ${p.address_1 || ''} ${p.property_id}`.toLowerCase().includes(query.trim().toLowerCase()));
   return <View style={styles.propertySelectorWrap}>
-    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Change property" style={styles.propertySelector} onPress={() => setOpen(true)}>
-      <View style={styles.propertyBadge}><Text style={styles.propertyBadgeText}>E</Text></View>
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('selectProperty')} style={styles.propertySelector} onPress={() => setOpen(true)}>
+      <View style={styles.propertyBadge}><Text style={styles.propertyBadgeText}>J</Text></View>
       <View style={styles.propertySelectedCopy}>
-        <Text style={styles.propertyEyebrow}>CURRENT PROPERTY</Text>
-        <Text numberOfLines={1} style={styles.propertySelectedName}>{selected?.property_name || 'Select a property'}</Text>
+        <Text style={styles.propertyEyebrow}>{t('currentProperty')}</Text>
+        <Text numberOfLines={1} style={styles.propertySelectedName}>{selected?.property_name || t('selectProperty')}</Text>
         {!!selected?.address_1 && <Text numberOfLines={1} style={styles.propertySelectedAddress}>{selected.address_1}</Text>}
       </View>
-      <View style={styles.propertyChange}><Text style={styles.propertyChangeText}>Change</Text><Text style={styles.propertyChevron}>⌄</Text></View>
+      <View style={styles.propertyChange}><Text style={styles.propertyChangeText}>{t('select')}</Text><Text style={styles.propertyChevron}>⌄</Text></View>
     </TouchableOpacity>
     <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
       <View style={styles.modalBack}>
         <View style={styles.propertyModal}>
-          <View style={styles.propertyModalHead}><View><Text style={styles.modalTitle}>Select property</Text><Text style={styles.propertyCount}>{properties.length} properties available</Text></View><TouchableOpacity onPress={() => setOpen(false)} style={styles.closeButton}><Text style={styles.closeButtonText}>×</Text></TouchableOpacity></View>
-          <TextInput value={query} onChangeText={setQuery} autoFocus placeholder="Search name, village or property ID" placeholderTextColor="#8a918b" style={styles.propertySearch} />
+          <View style={styles.propertyModalHead}><View><Text style={styles.modalTitle}>{t('selectProperty')}</Text><Text style={styles.propertyCount}>{properties.length} {t('propertiesAvailable')}</Text></View><TouchableOpacity onPress={() => setOpen(false)} style={styles.closeButton}><Text style={styles.closeButtonText}>×</Text></TouchableOpacity></View>
+          <TextInput value={query} onChangeText={setQuery} autoFocus placeholder={t('searchProperty')} placeholderTextColor="#8a796b" style={styles.propertySearch} />
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.propertyList}>
             {filtered.map(p => {
               const active = String(p.property_id) === String(propertyId);
@@ -307,24 +346,46 @@ function weatherTheme(weather) {
   if (text.includes('cloud') || text.includes('overcast') || [1003,1006,1009].includes(code)) return { kind:'cloud', icon:'☁️', colors:['#607683','#8799a1'], accent:'#eef4f5' };
   if ((weather?.current?.temp_c || 0) >= 32) return { kind:'hot', icon:'☀️', colors:['#c75d19','#e99a26'], accent:'#fff2a8' };
   if ((weather?.current?.temp_c || 30) <= 16) return { kind:'cold', icon:'❄️', colors:['#3e7194','#6ba7c2'], accent:'#e8fbff' };
-  return { kind:'sunny', icon:'☀️', colors:['#2d8558','#66a957'], accent:'#fff0a6' };
+  return { kind:'sunny', icon:'☀️', colors:['#8a5527','#c18446'], accent:'#fff0a6' };
 }
 
-function WeatherHero() {
+function WeatherHero({ property, t }) {
   const [weather, setWeather] = useState(null);
   const [weatherError, setWeatherError] = useState('');
+  const [gpsState,setGpsState] = useState('checking');
+  const [coordinates,setCoordinates] = useState(null);
   const motion = useRef(new Animated.Value(0)).current;
   const theme = weatherTheme(weather);
+
+  async function requestLocation() {
+    try {
+      let enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled && Platform.OS === 'android') { try { await Location.enableNetworkProviderAsync(); } catch {} enabled = await Location.hasServicesEnabledAsync(); }
+      if (!enabled) { setGpsState('off'); return null; }
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') { setGpsState('denied'); return null; }
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const value = { latitude:position.coords.latitude, longitude:position.coords.longitude };
+      setCoordinates(value); setGpsState('ready'); return value;
+    } catch { setGpsState('off'); return null; }
+  }
 
   async function loadWeather() {
     try {
       setWeatherError('');
-      const response = await fetch(`https://api.weatherapi.com/v1/current.json?q=${encodeURIComponent(WEATHER_LOCATION)}&key=${WEATHER_API_KEY}`);
+      const propertyQuery = String(property?.pincode || '').trim() || [property?.address_1,property?.address_2].filter(Boolean).join(', ');
+      const gps = coordinates;
+      const query = propertyQuery || (gps ? `${gps.latitude},${gps.longitude}` : 'bengaluru');
+      const response = await fetch(`https://api.weatherapi.com/v1/current.json?q=${encodeURIComponent(query)}&key=${WEATHER_API_KEY}`);
       const body = await response.json();
       if (!response.ok || body.error) throw new Error(body.error?.message || 'Weather unavailable');
       setWeather(body);
     } catch (error) { setWeatherError(error.message || 'Weather unavailable'); }
   }
+
+  useEffect(() => {
+    requestLocation();
+  }, []);
 
   useEffect(() => {
     loadWeather();
@@ -335,41 +396,41 @@ function WeatherHero() {
     ]));
     animation.start();
     return () => { clearInterval(timer); animation.stop(); };
-  }, []);
+  }, [property?.property_id,property?.pincode,property?.address_1,property?.address_2,coordinates?.latitude,coordinates?.longitude]);
 
   const drift = motion.interpolate({ inputRange:[0,1], outputRange:[-5,7] });
   const pulse = motion.interpolate({ inputRange:[0,1], outputRange:[0.92,1.08] });
   const current = weather?.current;
-  return <View style={[styles.weatherHero, {backgroundColor:theme.colors[0]}]}>
+  return <>{gpsState !== 'ready' && <View style={styles.gpsBanner}><Text style={styles.gpsText}>{gpsState === 'checking' ? t('allowLocation') : gpsState === 'denied' ? t('permissionDenied') : t('gpsRequired')}</Text><TouchableOpacity style={styles.gpsButton} onPress={gpsState === 'denied' ? Linking.openSettings : requestLocation}><Text style={styles.gpsButtonText}>{gpsState === 'denied' ? t('settings') : gpsState === 'checking' ? t('allowLocation') : t('enableGps')}</Text></TouchableOpacity></View>}<View style={[styles.weatherHero, {backgroundColor:theme.colors[0]}]}>
     <View style={[styles.weatherGlow, {backgroundColor:theme.colors[1]}]} />
     <View style={styles.weatherCopy}>
       <Text style={styles.weatherPlace}>{weather?.location?.name || 'Bengaluru'} • LIVE</Text>
-      <Text style={styles.weatherCondition}>{current?.condition?.text || (weatherError ? 'Weather unavailable' : 'Updating weather…')}</Text>
+      <Text style={styles.weatherCondition}>{current?.condition?.text || (weatherError ? t('weatherUnavailable') : t('updatingWeather'))}</Text>
       <Text style={styles.weatherTemperature}>{current ? `${Math.round(current.temp_c)}°C` : '--°'}</Text>
-      <Text style={styles.weatherFeels}>Feels like {current ? `${Math.round(current.feelslike_c)}°C` : '--'}  •  Wind {current?.wind_kph ?? '--'} km/h</Text>
+      <Text style={styles.weatherFeels}>{t('feelsLike')} {current ? `${Math.round(current.feelslike_c)}°C` : '--'}  •  {t('wind')} {current?.wind_kph ?? '--'} km/h</Text>
     </View>
     <Animated.View style={[styles.weatherArt, {transform:[{translateX:drift},{scale:pulse}]}]}>
       {current?.condition?.icon ? <Image source={{uri:`https:${current.condition.icon}`}} style={styles.weatherIconImage} /> : <Text style={styles.weatherEmoji}>{theme.icon}</Text>}
     </Animated.View>
     {(theme.kind === 'rain' || theme.kind === 'storm') && <View style={styles.rainLayer}>{[0,1,2,3,4,5,6].map(i => <Animated.View key={i} style={[styles.rainDrop,{left:10+i*18,transform:[{translateY:motion.interpolate({inputRange:[0,1],outputRange:[-8,55]})}]}]} />)}</View>}
     <View style={styles.weatherMetrics}>
-      <View><Text style={styles.metricLabel}>Humidity</Text><Text style={styles.metricValue}>{current?.humidity ?? '--'}%</Text></View>
-      <View><Text style={styles.metricLabel}>Rain</Text><Text style={styles.metricValue}>{current?.precip_mm ?? '--'} mm</Text></View>
+      <View><Text style={styles.metricLabel}>{t('humidity')}</Text><Text style={styles.metricValue}>{current?.humidity ?? '--'}%</Text></View>
+      <View><Text style={styles.metricLabel}>{t('rain')}</Text><Text style={styles.metricValue}>{current?.precip_mm ?? '--'} mm</Text></View>
       <View><Text style={styles.metricLabel}>UV</Text><Text style={styles.metricValue}>{current?.uv ?? '--'}</Text></View>
-      <TouchableOpacity onPress={loadWeather}><Text style={[styles.weatherRefresh,{color:theme.accent}]}>Refresh</Text></TouchableOpacity>
+      <TouchableOpacity onPress={loadWeather}><Text style={[styles.weatherRefresh,{color:theme.accent}]}>{t('refresh')}</Text></TouchableOpacity>
     </View>
-  </View>;
+  </View></>;
 }
 
-function Home({ dashboard, data, openModule, favorites, editFavorites }) {
+function Home({ dashboard, data, openModule, favorites, editFavorites, property, t }) {
   const summary = [
     ['Workers', dashboard?.attendance?.entries || data.labors?.length || 0, '👥'], ['Rain Today', `${dashboard?.rainfall?.total || 0} mm`, '🌧️'], ['Plants', dashboard?.plantInventoryTotal?.total_plants || 0, '🌱'], ['Net Profit', `₹${profitTotal(dashboard).toLocaleString('en-IN')}`, '💰']
   ];
   return <View>
-    <WeatherHero />
+    <WeatherHero property={property} t={t} />
     <View style={styles.grid}>{summary.map(s => <View key={s[0]} style={styles.stat}><Text style={styles.statIcon}>{s[2]}</Text><Text style={styles.statValue}>{s[1]}</Text><Text style={styles.statLabel}>{s[0]}</Text></View>)}</View>
-    <Section title="Quick Add" right={`${favorites.length}/8 shortcuts`}><IconGrid items={[...favorites.map(key => QUICK_ACTIONS.find(a => a[2] === key)).filter(Boolean),['More','•••','favorites']]} openModule={openModule} onMore={editFavorites} /></Section>
-    <Section title="Today's Tasks"><RecordList rows={data.workAssignments || []} empty="No tasks assigned today." /></Section>
+    <Section title={t('quickAdd')} right={`${favorites.length}/8 shortcuts`}><IconGrid items={[...favorites.map(key => QUICK_ACTIONS.find(a => a[2] === key)).filter(Boolean),[t('more'),'•••','favorites']]} openModule={openModule} onMore={editFavorites} /></Section>
+    <Section title={t('todaysTasks')}><RecordList rows={data.workAssignments || []} empty="No tasks assigned today." /></Section>
   </View>;
 }
 
@@ -391,22 +452,22 @@ function FavoriteEditor({ visible, favorites, setFavorites, close }) {
   </Modal>;
 }
 
-function QuickAdd({ openModule }) {
-  return <View><Text style={styles.screenTitle}>Quick Add</Text><IconGrid items={QUICK_ACTIONS} openModule={openModule} /></View>;
+function QuickAdd({ openModule, t }) {
+  return <View><Text style={styles.screenTitle}>{t('quickAdd')}</Text><IconGrid items={QUICK_ACTIONS} openModule={openModule} /></View>;
 }
 
-function Modules({ openModule }) {
-  return <View><Text style={styles.screenTitle}>All Modules</Text>{moduleGroups.map(g => <View key={g.key} style={styles.card}><Text style={styles.sectionTitle}>{g.icon} {g.title}</Text>{g.items.map(i => <TouchableOpacity key={i} style={styles.moduleRow} onPress={() => openModule(i)}><Text style={styles.moduleName}>{labels[i]}</Text><Text style={styles.chev}>›</Text></TouchableOpacity>)}</View>)}</View>;
+function Modules({ openModule, t }) {
+  return <View><Text style={styles.screenTitle}>{t('modules')}</Text>{moduleGroups.map(g => <View key={g.key} style={styles.card}><Text style={styles.sectionTitle}>{g.icon} {g.title}</Text>{g.items.map(i => <TouchableOpacity key={i} style={styles.moduleRow} onPress={() => openModule(i)}><Text style={styles.moduleName}>{labels[i]}</Text><Text style={styles.chev}>›</Text></TouchableOpacity>)}</View>)}</View>;
 }
 
-function Reports({ dashboard, data, openModule }) {
+function Reports({ dashboard, data, openModule, t = translator('en') }) {
   const reportCards = [
     ['Rainfall Report', `${dashboard?.rainfall?.total || 0} mm`, '🌧️', 'rainfallQuick'], ['Expense Report', `₹${dashboard?.expenses?.total || 0}`, '💵', 'expenses'], ['Labour Report', `${dashboard?.attendance?.labor_days || 0} days`, '👥', 'attendanceQuick'], ['Plant Report', `${dashboard?.plantInventoryTotal?.total_plants || 0}`, '🌱', 'plantInventory'], ['Work Report', `${dashboard?.workAssignmentTotal?.entries || 0}`, '🧑‍🌾', 'workAssignments'], ['Profit Report', `₹${profitTotal(dashboard).toLocaleString('en-IN')}`, '📊', 'reports']
   ];
-  return <View><Text style={styles.screenTitle}>Reports</Text><View style={styles.grid}>{reportCards.map(r => <TouchableOpacity key={r[0]} style={styles.reportCard} onPress={() => openModule(r[3])}><Text style={styles.statIcon}>{r[2]}</Text><Text style={styles.reportValue}>{r[1]}</Text><Text style={styles.statLabel}>{r[0]}</Text></TouchableOpacity>)}</View><Section title="Recent Attendance"><RecordList rows={data.attendance || []} /></Section><Section title="Plant Distribution"><RecordList rows={dashboard?.plantByType || data.plantInventory || []} /></Section></View>;
+  return <View><Text style={styles.screenTitle}>{t('reports')}</Text><View style={styles.grid}>{reportCards.map(r => <TouchableOpacity key={r[0]} style={styles.reportCard} onPress={() => openModule(r[3])}><Text style={styles.statIcon}>{r[2]}</Text><Text style={styles.reportValue}>{r[1]}</Text><Text style={styles.statLabel}>{r[0]}</Text></TouchableOpacity>)}</View><Section title="Recent Attendance"><RecordList rows={data.attendance || []} /></Section><Section title="Plant Distribution"><RecordList rows={dashboard?.plantByType || data.plantInventory || []} /></Section></View>;
 }
 
-function More({ user, onLogout, openModule }) {
+function More({ user, onLogout, openModule, t = translator('en') }) {
   return <View><Text style={styles.screenTitle}>More</Text><View style={styles.card}><Text style={styles.sectionTitle}>Account</Text><Text style={styles.note}>Logged in as {user?.username}</Text><TouchableOpacity style={styles.secondary} onPress={onLogout}><Text style={styles.secondaryText}>Logout</Text></TouchableOpacity></View><Section title="Secure & Reliable"><IconGrid items={[['Offline First Ready','📴','settings'],['Multi Language Ready','🌐','settings'],['Backup / Restore','💾','settings'],['Notifications','🔔','notifications']]} openModule={openModule} /></Section></View>;
 }
 
@@ -556,15 +617,15 @@ function Section({ title, right, children }) { return <View style={styles.card}>
 function Suggestion({ text, danger, warning }) { return <View style={styles.suggestion}><Text>{danger ? '🔴' : warning ? '🟠' : '🟢'}</Text><Text style={styles.suggestionText}>{text}</Text></View>; }
 function IconGrid({ items, openModule, onMore }) { return <View style={styles.iconGrid}>{items.map(([t,ic,key],index) => <TouchableOpacity key={`${key}-${t}-${index}`} style={styles.iconTile} onPress={() => key === 'favorites' ? onMore?.() : openModule(key)}><Text style={styles.icon}>{ic}</Text><Text style={styles.iconLabel}>{t}</Text></TouchableOpacity>)}</View>; }
 function RecordList({ rows = [], empty = 'No records in this period.', moduleKey, data = {}, meta = {}, onEdit, onDelete }) { if (!rows?.length) return <Text style={styles.muted}>{empty}</Text>; return <View>{rows.map((r,i) => { const details = recordDetails(r,data,meta); const preferredTitle = r.labor_name || r.work_activity_name || r.block_name || r.property_name || r.name || details.find(([label]) => ['Labour','Activity','Block','Plant','Vendor'].includes(label))?.[1] || itemTitle(r); return <View key={`${rowId(r) || 'row'}-${i}`} style={styles.record}><View style={{flex:1}}><Text style={styles.recordTitle}>{preferredTitle}</Text>{details.map(([label,value],detailIndex) => <View key={`detail-${label}-${detailIndex}`} style={styles.recordDetail}><Text style={styles.recordLabel}>{label}</Text><Text style={styles.recordValue}>{String(value)}</Text></View>)}</View><View style={styles.recordActions}>{onEdit && <TouchableOpacity accessibilityLabel="Edit record" onPress={() => onEdit(r)}><Text style={styles.edit}>✏️</Text></TouchableOpacity>}{onDelete && <TouchableOpacity accessibilityLabel="Delete record" onPress={() => onDelete(r)}><Text style={styles.delete}>🗑️</Text></TouchableOpacity>}</View></View>; })}</View>; }
-function BottomNav({ screen, setScreen }) { const nav = [['home','Home','🏠'],['add','Add','＋'],['modules','Modules','📋'],['reports','Reports','📊'],['more','More','☰']]; return <View style={styles.bottom}>{nav.map(n => <TouchableOpacity key={n[0]} style={styles.navItem} onPress={() => setScreen(n[0])}><Text style={[styles.navIcon, screen===n[0] && styles.navActive]}>{n[2]}</Text><Text style={[styles.navText, screen===n[0] && styles.navActive]}>{n[1]}</Text></TouchableOpacity>)}</View>; }
+function BottomNav({ screen, setScreen, t }) { const nav = [['home',t('home'),'🏠'],['add',t('add'),'＋'],['modules',t('modules'),'📋'],['reports',t('reports'),'📊'],['more',t('more'),'☰']]; return <View style={styles.bottom}>{nav.map(n => <TouchableOpacity key={n[0]} style={styles.navItem} onPress={() => setScreen(n[0])}><Text style={[styles.navIcon, screen===n[0] && styles.navActive]}>{n[2]}</Text><Text numberOfLines={1} style={[styles.navText, screen===n[0] && styles.navActive]}>{n[1]}</Text></TouchableOpacity>)}</View>; }
 
 const styles = StyleSheet.create({
-  safe:{flex:1,backgroundColor:SOFT,paddingTop:Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 0}, body:{padding:12,paddingBottom:96}, header:{minHeight:72,paddingHorizontal:16,paddingTop:12,paddingBottom:10,backgroundColor:'#fffdf8',borderBottomWidth:1,borderBottomColor:LINE,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12},headerCopy:{flex:1,minWidth:0},headerMeta:{width:124,alignItems:'flex-end'},smallCaps:{fontWeight:'900',fontSize:15,color:'#111'}, headerTitle:{fontSize:12,color:'#3c453c',marginTop:3}, date:{fontSize:11,color:'#555'}, location:{fontSize:11,color:DARK,fontWeight:'700',marginTop:3,maxWidth:124}, user:{fontSize:10,color:'#777',marginTop:2,maxWidth:124},
-  propertySelectorWrap:{backgroundColor:'#fffdf8',paddingHorizontal:12,paddingVertical:9,borderBottomWidth:1,borderBottomColor:'#d7d1c4'},propertySelector:{minHeight:62,flexDirection:'row',alignItems:'center',backgroundColor:'#fff',borderWidth:1.5,borderColor:'#b8c4b9',borderRadius:15,paddingHorizontal:12,paddingVertical:9,elevation:2,shadowColor:'#173d22',shadowOpacity:.08,shadowRadius:5},propertyBadge:{width:38,height:38,borderRadius:12,backgroundColor:'#e8f4e9',alignItems:'center',justifyContent:'center',marginRight:10},propertyBadgeText:{color:GREEN,fontWeight:'900',fontSize:18},propertySelectedCopy:{flex:1,minWidth:0},propertyEyebrow:{fontSize:9,color:'#738078',fontWeight:'900',letterSpacing:.7},propertySelectedName:{fontSize:15,color:DARK,fontWeight:'900',marginTop:1},propertySelectedAddress:{fontSize:10,color:'#687169',marginTop:1},propertyChange:{flexDirection:'row',alignItems:'center',backgroundColor:'#edf7ee',paddingHorizontal:10,paddingVertical:7,borderRadius:12,marginLeft:8},propertyChangeText:{fontSize:11,color:GREEN,fontWeight:'900'},propertyChevron:{fontSize:17,color:GREEN,fontWeight:'900',marginLeft:4,marginTop:-3},
+  safe:{flex:1,backgroundColor:SOFT,paddingTop:Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 0}, body:{padding:12,paddingBottom:96}, header:{minHeight:72,paddingHorizontal:12,paddingTop:10,paddingBottom:9,backgroundColor:'#fbf5eb',borderBottomWidth:1,borderBottomColor:LINE,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:9},backButton:{width:34,height:34,borderRadius:12,backgroundColor:'#ead9c4',alignItems:'center',justifyContent:'center'},backButtonText:{fontSize:30,lineHeight:31,color:GREEN,fontWeight:'700'},headerCopy:{flex:1,minWidth:0},headerMeta:{width:132,alignItems:'flex-end'},smallCaps:{fontWeight:'900',fontSize:15,color:DARK}, headerTitle:{fontSize:12,color:'#644b38',marginTop:3}, date:{fontSize:11,color:'#6d5847'}, location:{fontSize:11,color:DARK,fontWeight:'700',marginTop:3,maxWidth:132}, user:{fontSize:10,color:'#777',marginTop:2,maxWidth:124},languageCompact:{backgroundColor:'#ead9c4',borderRadius:10,paddingHorizontal:7,paddingVertical:4,marginTop:4},languageText:{fontSize:10,color:DARK,fontWeight:'900'},languageActive:{backgroundColor:'#f1dfc9'},
+  propertySelectorWrap:{backgroundColor:'#fbf5eb',paddingHorizontal:12,paddingVertical:9,borderBottomWidth:1,borderBottomColor:LINE},propertySelector:{minHeight:62,flexDirection:'row',alignItems:'center',backgroundColor:'#fffaf2',borderWidth:1.5,borderColor:'#c9ad8d',borderRadius:15,paddingHorizontal:12,paddingVertical:9,elevation:2,shadowColor:'#4a2b18',shadowOpacity:.1,shadowRadius:5},propertyBadge:{width:38,height:38,borderRadius:12,backgroundColor:'#ead9c4',alignItems:'center',justifyContent:'center',marginRight:10},propertyBadgeText:{color:GREEN,fontWeight:'900',fontSize:18},propertySelectedCopy:{flex:1,minWidth:0},propertyEyebrow:{fontSize:9,color:'#846b57',fontWeight:'900',letterSpacing:.7},propertySelectedName:{fontSize:15,color:DARK,fontWeight:'900',marginTop:1},propertySelectedAddress:{fontSize:10,color:'#776252',marginTop:1},propertyChange:{flexDirection:'row',alignItems:'center',backgroundColor:'#f0dfca',paddingHorizontal:10,paddingVertical:7,borderRadius:12,marginLeft:8},propertyChangeText:{fontSize:11,color:GREEN,fontWeight:'900'},propertyChevron:{fontSize:17,color:GREEN,fontWeight:'900',marginLeft:4,marginTop:-3},
   propertyModal:{backgroundColor:'#fffdf8',borderTopLeftRadius:24,borderTopRightRadius:24,padding:18,maxHeight:'82%'},propertyModalHead:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between'},propertyCount:{fontSize:11,color:'#727b74',marginTop:-5,marginBottom:12},closeButton:{width:34,height:34,borderRadius:17,backgroundColor:'#eef0eb',alignItems:'center',justifyContent:'center'},closeButtonText:{fontSize:25,color:DARK,lineHeight:27},propertySearch:{backgroundColor:'#fff',borderWidth:1.5,borderColor:'#c5cec6',borderRadius:13,paddingHorizontal:14,paddingVertical:12,color:'#17291d',fontSize:14,marginBottom:10},propertyList:{paddingBottom:24},propertyOption:{flexDirection:'row',alignItems:'center',padding:12,borderBottomWidth:1,borderBottomColor:'#ece9e0',borderRadius:12},propertyOptionActive:{backgroundColor:'#edf7ee',borderBottomColor:'#d5ead8'},propertyOptionMark:{width:38,height:38,borderRadius:12,backgroundColor:'#f0f0ec',alignItems:'center',justifyContent:'center',marginRight:11},propertyOptionMarkActive:{backgroundColor:GREEN},propertyOptionMarkText:{fontWeight:'900',color:'#59645c'},propertyOptionMarkTextActive:{color:'#fff'},propertyOptionName:{fontSize:14,fontWeight:'900',color:DARK},propertyOptionMeta:{fontSize:10,color:'#6e786f',marginTop:3},propertyEmpty:{textAlign:'center',color:'#737b75',paddingVertical:30},
   loginPage:{flex:1,backgroundColor:'#f3efe4',paddingTop:Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 0},loginKeyboard:{flex:1},loginScroll:{flexGrow:1,justifyContent:'center',paddingHorizontal:22,paddingTop:24,paddingBottom:36},logoImage:{alignSelf:'center',width:92,height:92,borderRadius:22,marginBottom:10},loginTitle:{fontSize:31,fontWeight:'900',color:GREEN,textAlign:'center'},loginSub:{backgroundColor:GREEN,color:'#fff',alignSelf:'center',paddingHorizontal:16,paddingVertical:7,borderRadius:18,overflow:'hidden',marginTop:7,marginBottom:16,fontWeight:'800'},loginCard:{backgroundColor:'#fffdf8',borderRadius:18,padding:16,borderWidth:1,borderColor:LINE},note:{fontSize:12,color:'#675',marginBottom:10},error:{color:'#b00020',fontWeight:'700',marginVertical:8},
   card:{backgroundColor:'#fffdf8',borderRadius:16,padding:14,marginBottom:12,borderWidth:1,borderColor:LINE,shadowColor:'#000',shadowOpacity:.05,shadowRadius:8,elevation:1}, screenTitle:{fontSize:22,fontWeight:'900',color:DARK,marginBottom:12}, sectionHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:8}, sectionTitle:{fontSize:15,fontWeight:'900',color:DARK}, sectionRight:{fontSize:11,color:'#777'},
-  weatherHero:{minHeight:220,borderRadius:22,padding:18,marginBottom:12,overflow:'hidden',shadowColor:'#10251b',shadowOpacity:.18,shadowRadius:12,elevation:5}, weatherGlow:{position:'absolute',right:-55,top:-60,width:210,height:210,borderRadius:105,opacity:.72}, weatherCopy:{zIndex:2,maxWidth:'67%'}, weatherPlace:{color:'rgba(255,255,255,.78)',fontSize:11,fontWeight:'900',letterSpacing:1}, weatherCondition:{color:'#fff',fontSize:18,fontWeight:'900',marginTop:8}, weatherTemperature:{color:'#fff',fontSize:46,fontWeight:'900',lineHeight:54}, weatherFeels:{color:'rgba(255,255,255,.9)',fontSize:11,fontWeight:'600'}, weatherArt:{position:'absolute',right:18,top:28,zIndex:2}, weatherIconImage:{width:96,height:96}, weatherEmoji:{fontSize:70}, rainLayer:{position:'absolute',right:8,top:78,width:145,height:74,overflow:'hidden'}, rainDrop:{position:'absolute',top:0,width:2,height:16,borderRadius:2,backgroundColor:'rgba(190,235,255,.75)',transform:[{rotate:'14deg'}]}, weatherMetrics:{position:'absolute',left:18,right:18,bottom:15,zIndex:3,flexDirection:'row',justifyContent:'space-between',alignItems:'flex-end',backgroundColor:'rgba(0,0,0,.16)',borderRadius:13,paddingHorizontal:12,paddingVertical:9}, metricLabel:{color:'rgba(255,255,255,.72)',fontSize:9,textTransform:'uppercase'}, metricValue:{color:'#fff',fontSize:13,fontWeight:'900',marginTop:2}, weatherRefresh:{fontSize:11,fontWeight:'900',paddingVertical:5},
+  gpsBanner:{backgroundColor:'#fff2d8',borderWidth:1,borderColor:'#d9ad67',borderRadius:14,padding:11,marginBottom:10,flexDirection:'row',alignItems:'center',gap:8},gpsText:{flex:1,color:'#66431e',fontSize:11,fontWeight:'700'},gpsButton:{backgroundColor:GREEN,borderRadius:9,paddingHorizontal:10,paddingVertical:8},gpsButtonText:{color:'#fff',fontSize:10,fontWeight:'900'},weatherHero:{minHeight:220,borderRadius:22,padding:18,marginBottom:12,overflow:'hidden',shadowColor:'#3d2416',shadowOpacity:.2,shadowRadius:12,elevation:5}, weatherGlow:{position:'absolute',right:-55,top:-60,width:210,height:210,borderRadius:105,opacity:.72}, weatherCopy:{zIndex:2,maxWidth:'67%'}, weatherPlace:{color:'rgba(255,255,255,.78)',fontSize:11,fontWeight:'900',letterSpacing:1}, weatherCondition:{color:'#fff',fontSize:18,fontWeight:'900',marginTop:8}, weatherTemperature:{color:'#fff',fontSize:46,fontWeight:'900',lineHeight:54}, weatherFeels:{color:'rgba(255,255,255,.9)',fontSize:11,fontWeight:'600'}, weatherArt:{position:'absolute',right:18,top:28,zIndex:2}, weatherIconImage:{width:96,height:96}, weatherEmoji:{fontSize:70}, rainLayer:{position:'absolute',right:8,top:78,width:145,height:74,overflow:'hidden'}, rainDrop:{position:'absolute',top:0,width:2,height:16,borderRadius:2,backgroundColor:'rgba(190,235,255,.75)',transform:[{rotate:'14deg'}]}, weatherMetrics:{position:'absolute',left:18,right:18,bottom:15,zIndex:3,flexDirection:'row',justifyContent:'space-between',alignItems:'flex-end',backgroundColor:'rgba(0,0,0,.16)',borderRadius:13,paddingHorizontal:12,paddingVertical:9}, metricLabel:{color:'rgba(255,255,255,.72)',fontSize:9,textTransform:'uppercase'}, metricValue:{color:'#fff',fontSize:13,fontWeight:'900',marginTop:2}, weatherRefresh:{fontSize:11,fontWeight:'900',paddingVertical:5},
   weather:{width:168,backgroundColor:'#c88315',borderRadius:18,padding:14,marginBottom:12}, weatherRain:{backgroundColor:'#126247'}, weatherTop:{color:'#fff',fontWeight:'900'}, temp:{color:'#fff',fontWeight:'900',fontSize:28,marginVertical:10}, weatherSub:{color:'#fff',fontSize:12}, weatherFoot:{flexDirection:'row',justifyContent:'space-between',marginTop:14}, weatherMoney:{color:'#fff',fontWeight:'800',fontSize:11}, grid:{flexDirection:'row',flexWrap:'wrap',gap:10,marginBottom:12}, stat:{width:'47.8%',backgroundColor:'#fffdf8',borderWidth:1,borderColor:LINE,borderRadius:16,padding:14}, statIcon:{fontSize:22}, statValue:{fontSize:20,fontWeight:'900',color:GREEN,marginTop:6}, statLabel:{fontSize:12,color:'#5d675f',fontWeight:'700'}, reportCard:{width:'47.8%',backgroundColor:'#fffdf8',borderWidth:1,borderColor:LINE,borderRadius:16,padding:14}, reportValue:{fontSize:17,fontWeight:'900',color:DARK,marginVertical:4},
   iconGrid:{flexDirection:'row',flexWrap:'wrap',gap:10}, iconTile:{width:'30.6%',alignItems:'center',paddingVertical:12,borderWidth:1,borderColor:LINE,borderRadius:14,backgroundColor:'#fff'}, icon:{fontSize:23}, iconLabel:{fontSize:11,textAlign:'center',color:DARK,fontWeight:'700',marginTop:5}, suggestion:{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:7}, suggestionText:{fontSize:13,color:'#37433b'}, moduleRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:12,borderBottomWidth:1,borderBottomColor:'#eee8da'}, moduleName:{fontSize:14,fontWeight:'800',color:DARK}, chev:{fontSize:28,color:GREEN},
   favoriteModal:{backgroundColor:'#fffdf8',borderTopLeftRadius:24,borderTopRightRadius:24,padding:18,maxHeight:'88%'},favoriteHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'},favoriteHint:{fontSize:11,color:'#6f786f',marginTop:-5,marginBottom:10},favoriteList:{paddingBottom:10},favoriteRow:{flexDirection:'row',alignItems:'center',padding:11,borderWidth:1,borderColor:'#ebe7dc',borderRadius:13,marginBottom:7,backgroundColor:'#fff'},favoriteRowActive:{backgroundColor:'#edf7ee',borderColor:'#b8d9bd'},favoriteIcon:{fontSize:20,width:34},favoriteName:{flex:1,fontSize:13,fontWeight:'800',color:DARK},favoriteCheck:{width:28,height:28,borderRadius:9,backgroundColor:'#ecece7',alignItems:'center',justifyContent:'center'},favoriteCheckActive:{backgroundColor:GREEN},favoriteCheckText:{fontSize:16,color:'#fff',fontWeight:'900'},

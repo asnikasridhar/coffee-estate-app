@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Estate App",
+    "name": "JavaTerrain",
     "slug": "estate-manager-mobile-sdk54",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,6 +16,12 @@
     },
     "plugins": [
       "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow JavaTerrain to use your location for property-specific local weather."
+        }
+      ],
       [
         "expo-splash-screen",
         {
