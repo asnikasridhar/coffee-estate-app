@@ -14,6 +14,10 @@
         "backgroundColor": "#ffffff"
       }
     },
+    "androidNavigationBar": {
+      "backgroundColor": "#f5eee3",
+      "barStyle": "dark-content"
+    },
     "plugins": [
       "@react-native-community/datetimepicker",
       [
