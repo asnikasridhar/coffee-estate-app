@@ -28,6 +28,8 @@ router.post('/', asyncHandler((req, res) => {
   const { userId, propertyId } = requestContext(req);
   if (userId) assertPropertyAccess(userId, Number(req.body.property_id || propertyId));
   const payload = attendanceSchema.parse({ ...req.body, property_id: req.body.property_id || propertyId, user_id: req.body.user_id || userId || 1 });
+  const existing = row(`SELECT attendance_id FROM attendance WHERE labor_id = @labor_id AND property_id = @property_id AND date(entry_date) = date(@entry_date) LIMIT 1`, payload);
+  if (existing) return res.status(409).json({ error: 'Attendance already present', details: 'Attendance is already recorded for this labourer, property, and date. Edit or clear the existing attendance instead.' });
   const result = run(`INSERT INTO attendance (labor_id, property_id, user_id, entry_date, created_by, attendance_value) VALUES (@labor_id, @property_id, @user_id, @entry_date, @created_by, @attendance_value)`, payload);
   res.status(201).json(row('SELECT * FROM attendance WHERE attendance_id = ?', [result.lastInsertRowid]));
 }));
