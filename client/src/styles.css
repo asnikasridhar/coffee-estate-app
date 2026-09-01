@@ -68,6 +68,8 @@
   line-height: 1.2;
 }
 
+.checkField{min-height:46px;display:flex;flex-direction:row;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #d6ccb8;border-radius:14px}.checkField input[type="checkbox"]{width:20px;height:20px;accent-color:#8c6334}.checkField strong{color:#4d3825}
+
 .infoTip:hover::after,
 .infoTip:focus::after {
   right: -2px;
