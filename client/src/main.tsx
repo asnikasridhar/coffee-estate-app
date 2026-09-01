@@ -12,7 +12,7 @@ const nav = [
   ['Estate Setup','setup'], ['Work','work'], ['People & Vendors','people'], ['Labor Money','laborMoney'], ['Crop & Market','crop'], ['Expenses & Income','finance'], ['Inventory','inventory'], ['Reports','reports'], ['Images','images']
 ];
 const groups: Record<string, string[]> = {
-  setup: ['properties','blocks','plants','plantInventory','baseUnits'],
+  setup: ['properties','blocks','crops','cropTypes','varieties','plantInventory','baseUnits'],
   work: ['workActivities','workAssignments'],
   people: ['labors','vendors','laborVendors'],
   laborMoney: ['wages','wageSettlements','vendorSettlements'],
@@ -22,7 +22,7 @@ const groups: Record<string, string[]> = {
   reports: ['reports']
 };
 const labels: Record<string,string> = {
-  properties:'Properties', blocks:'Blocks', labors:'Employees / Labors', vendors:'Vendors', laborVendors:'Labor Vendor Mapping', vendorSettlements:'Labor Vendor Settlement', wages:'Labor Wage Settings', wageSettlements:'Running Wage Settlement', plants:'Plant Details', plantInventory:'Plant Inventory by Block/Sub-block', yieldTypes:'Yield Types', yieldRates:'Yield Rates / Market Price', assets:'Inventory / Assets', expenseTypes:'Expense Types', expenses:'Running Expenses', cropDetails:'Crop Details', cropIncome:'Income / Revenue', fertilizers:'Fertilizers', reports:'Manual Reports', baseUnits:'Base Units', workActivities:'Work Activity Master', workAssignments:'Work Assignments'
+  properties:'Properties', blocks:'Blocks', labors:'Employees / Labors', vendors:'Vendors', laborVendors:'Labor Vendor Mapping', vendorSettlements:'Labor Vendor Settlement', wages:'Labor Wage Settings', wageSettlements:'Running Wage Settlement', plants:'Legacy Plant Details', crops:'Crop Master', cropTypes:'Crop Type Master', varieties:'Variety Master', plantInventory:'Property Plant Inventory', yieldTypes:'Yield Types', yieldRates:'Yield Rates / Market Price', assets:'Inventory / Assets', expenseTypes:'Expense Types', expenses:'Running Expenses', cropDetails:'Legacy Crop Details', cropIncome:'Income / Revenue', fertilizers:'Fertilizers', reports:'Manual Reports', baseUnits:'Base Units', workActivities:'Work Activity Master', workAssignments:'Work Assignments'
 };
 const fieldConfig: Record<string, any[]> = {
   properties:[['property_name','text','Property name'],['total_acre','number','Total acre'],['address_1','text','Address 1'],['address_2','text','Address 2'],['pincode','text','Pincode'],['user_id','select','Manager/User','users','user_id','user_name']],
@@ -33,8 +33,11 @@ const fieldConfig: Record<string, any[]> = {
   vendorSettlements:[['laborvendor_id','select','Labor vendor','laborVendors','laborvendor_id','labor_vendor_label'],['settled_amount','number','Settled amount'],['advance_amount','number','Advance amount'],['running_wage_transaction_date','date','Date']],
   wages:[['labor_id','select','Labor','labors','labor_id','labor_name'],['wage_fixed','number','Fixed wage'],['wage_variable','number','Variable wage'],['wage_ot_perhr_price','number','OT per hour'],['wage_fix_code','text','Season wage code']],
   wageSettlements:[['wage_id','select','Wage','wages','wage_id','wage_label'],['settled_amount','number','Settled amount'],['advance_amount','number','Advance amount'],['running_wage_transaction_date','date','Date']],
-  plants:[['plant_type','text','Plant type'],['details','text','Details'],['block_id','select','Block','blocks','block_id','block_name',true]],
-  plantInventory:[['block_id','select','Block','blocks','block_id','block_name'],['sub_block_name','text','Sub-block / section name'],['plant_id','select','Plant type','plants','plant_id','plant_type'],['plant_count','number','Plant count'],['planting_date','date','Planting date'],['spacing','text','Spacing'],['status','select','Status','plantStatusOptions','id','name'],['notes','text','Notes']],
+  plants:[['plant_type','text','Plant name'],['plantdetailscol','text','Plant type / variety'],['details','text','Details (optional)'],['block_id','select','Block (optional)','blocks','block_id','block_name',true]],
+  crops:[['crop_name','text','Crop name']],
+  cropTypes:[['crop_id','select','Crop','crops','crop_id','crop_name'],['type_name','text','Crop type name'],['block_id','select','Block (optional)','blocks','block_id','block_name',true]],
+  varieties:[['crop_type_id','select','Crop type','cropTypes','crop_type_id','type_name'],['variety_name','text','Variety name']],
+  plantInventory:[['crop_id','select','Crop','crops','crop_id','crop_name'],['crop_type_id','select','Crop type','cropTypes','crop_type_id','type_name'],['variety_master_id','select','Variety','varieties','variety_master_id','variety_name'],['block_id','select','Block (optional)','blocks','block_id','block_name',true],['sub_block_name','text','Sub-block / section name'],['plant_count','number','Plant count'],['planting_date','date','Planting date'],['spacing','text','Spacing'],['status','select','Status','plantStatusOptions','id','name'],['notes','text','Notes']],
   workActivities:[['work_activity_name','text','Work activity name'],['work_activity_type','text','Work activity type'],['notes','text','Notes']],
   workAssignments:[['work_date','date','Work date'],['work_activity_id','select','Work activity','workActivities','work_activity_id','work_activity_name'],['labor_id','select','Labour with attendance','labors','labor_id','labor_name'],['block_id','select','Block','blocks','block_id','block_name'],['notes','text','Notes']],
   yieldTypes:[['yieldtype_name','text','Yield type'],['plant_id','select','Plant','plants','plant_id','plant_type']],
@@ -54,7 +57,10 @@ const gridColumns: Record<string,string[]> = {
   properties:['property_name','total_acre','address_1','address_2','pincode'],
   blocks:['block_name','property_name','parent_block_name','block_area'],
   plants:['plant_type','details','block_name','plantdetailscol'],
-  plantInventory:['property_name','block_name','plant_name','sub_block_name','plant_count','planting_date','spacing','status','notes'],
+  crops:['crop_name','property_name'],
+  cropTypes:['crop_name','type_name','block_name'],
+  varieties:['crop_name','type_name','variety_name'],
+  plantInventory:['property_name','block_name','crop_name','type_name','variety_name','sub_block_name','plant_count','planting_date','spacing','status','notes'],
   workActivities:['property_name','work_activity_name','work_activity_type','notes'],
   workAssignments:['property_name','work_activity_name','labor_name','block_name','work_date','notes'],
   labors:['user_name','name','age','address','emergency_details','health_history'],
@@ -78,6 +84,9 @@ function namedRows(resource:string, rows:any[], meta:any){
     parent_block_name:r.parent_block_name||find('blocks','block_id',r.parent_block_id,'block_name'),
     block_name:r.block_name||find('blocks','block_id',r.block_id,'block_name'),
     plant_name:r.plant_name||find('plants','plant_id',r.plant_id,'plant_type'),
+    crop_name:r.crop_name||find('crops','crop_id',r.crop_id,'crop_name')||find('crops','crop_id',meta?.cropTypes?.find((x:any)=>String(x.crop_type_id)===String(r.crop_type_id||meta?.varieties?.find((v:any)=>String(v.variety_master_id)===String(r.variety_master_id))?.crop_type_id))?.crop_id,'crop_name'),
+    type_name:r.type_name||find('cropTypes','crop_type_id',r.crop_type_id,'type_name')||find('cropTypes','crop_type_id',meta?.varieties?.find((x:any)=>String(x.variety_master_id)===String(r.variety_master_id))?.crop_type_id,'type_name'),
+    variety_name:r.variety_name||find('varieties','variety_master_id',r.variety_master_id,'variety_name'),
     work_activity_name:r.work_activity_name||find('workActivities','work_activity_id',r.work_activity_id,'work_activity_name'),
     labor_name:r.labor_name||find('labors','labor_id',r.labor_id,'labor_name'),
     user_name:r.user_name||find('users','user_id',r.user_id,'user_name'),
@@ -214,7 +223,9 @@ function Crud({resource,meta,rows,save,update,remove}:any){
   useEffect(()=>{ setF(emptyFor(resource)); setEditing(null); },[resource]);
   const fields = (fieldConfig[resource] || []).filter((x:any)=> !(x[0]==='property_id' && resource !== 'properties'));
   const idKey = rows?.[0] ? Object.keys(rows[0]).find(k=>k.endsWith('_id')) : (resource === 'plantInventory' ? 'plant_inventory_id' : 'id');
-  const optionSource = (key:string) => key === 'plantStatusOptions' ? [{id:'active',name:'Active'},{id:'replanted',name:'Replanted'},{id:'diseased',name:'Diseased'},{id:'removed',name:'Removed'}] : (meta?.[key] || []);
+  const optionSource = (key:string) => key === 'plantStatusOptions' ? [{id:'active',name:'Active'},{id:'replanted',name:'Replanted'},{id:'diseased',name:'Diseased'},{id:'removed',name:'Removed'}] : key==='cropTypes'&&f.crop_id?(meta?.cropTypes||[]).filter((row:any)=>String(row.crop_id)===String(f.crop_id)):key==='varieties'&&f.crop_type_id?(meta?.varieties||[]).filter((row:any)=>String(row.crop_type_id)===String(f.crop_type_id)):(meta?.[key] || []);
+  useEffect(()=>{if(resource!=='plantInventory')return;const types=(meta?.cropTypes||[]).filter((row:any)=>String(row.crop_id)===String(f.crop_id));if(!types.some((row:any)=>String(row.crop_type_id)===String(f.crop_type_id)))setF((current:any)=>({...current,crop_type_id:types[0]?String(types[0].crop_type_id):'',variety_master_id:''}));},[resource,f.crop_id,meta]);
+  useEffect(()=>{if(resource!=='plantInventory')return;const varieties=(meta?.varieties||[]).filter((row:any)=>String(row.crop_type_id)===String(f.crop_type_id));if(!varieties.some((row:any)=>String(row.variety_master_id)===String(f.variety_master_id)))setF((current:any)=>({...current,variety_master_id:varieties[0]?String(varieties[0].variety_master_id):''}));},[resource,f.crop_type_id,meta]);
   useEffect(()=>{ setF((current:any)=>{ const next={...current}; let changed=false; for(const field of fields){ if(field[1]==='select' && !field[6] && !next[field[0]]){ const first=optionSource(field[3])?.[0]?.[field[4]]; if(first!==undefined){next[field[0]]=String(first);changed=true;} } } return changed?next:current; }); },[resource,meta]);
   const startEdit = (r:any) => { setEditing(r[idKey || 'id']); const next:any = emptyFor(resource); for(const field of (fieldConfig[resource] || [])){ if(r[field[0]] !== undefined && r[field[0]] !== null) next[field[0]] = String(r[field[0]]); } setF(next); window.scrollTo({top:0, behavior:'smooth'}); };
   const clearEdit = () => { setEditing(null); setF(emptyFor(resource)); };

@@ -3,10 +3,10 @@ import { json, options, body, propertyIdFromUrl, userIdFromRequest, assertProper
 export function onRequestOptions() { return options(); }
 
 async function validRate(env, rateId, propertyId) {
-  return first(env, 'SELECT yr.yieldrate_id FROM yieldrate yr JOIN plantdetails pd ON pd.plant_id = yr.plant_id JOIN blocks b ON b.block_id = pd.block_id WHERE yr.yieldrate_id = ? AND b.property_id = ?', Number(rateId), propertyId);
+  return first(env, 'SELECT yr.yieldrate_id FROM yieldrate yr JOIN plantdetails pd ON pd.plant_id = yr.plant_id WHERE yr.yieldrate_id = ? AND pd.property_id = ?', Number(rateId), propertyId);
 }
 
-const ownedYield = `SELECT ys.yield_settlement_id FROM yield_settlement ys JOIN yieldrate yr ON yr.yieldrate_id = ys.yieldrate_id JOIN plantdetails pd ON pd.plant_id = yr.plant_id JOIN blocks b ON b.block_id = pd.block_id WHERE ys.yield_settlement_id = ? AND b.property_id = ?`;
+const ownedYield = `SELECT ys.yield_settlement_id FROM yield_settlement ys JOIN yieldrate yr ON yr.yieldrate_id = ys.yieldrate_id JOIN plantdetails pd ON pd.plant_id = yr.plant_id WHERE ys.yield_settlement_id = ? AND pd.property_id = ?`;
 
 export async function onRequestPatch({ request, env, params }) {
   try {
