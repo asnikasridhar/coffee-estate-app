@@ -179,11 +179,13 @@ CREATE TABLE plantdetails (
   details text,
   block_id INTEGER DEFAULT NULL,
   plantdetailscol TEXT DEFAULT NULL,
+  property_id INTEGER DEFAULT NULL,
   created_on TEXT DEFAULT NULL,
   created_by TEXT DEFAULT NULL,
   modified_on TEXT DEFAULT NULL,
   modified_by TEXT DEFAULT NULL,
-  FOREIGN KEY (block_id) REFERENCES blocks (block_id)
+  FOREIGN KEY (block_id) REFERENCES blocks (block_id),
+  FOREIGN KEY (property_id) REFERENCES property (property_id)
 );
 
 DROP TABLE IF EXISTS property;

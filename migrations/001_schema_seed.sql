@@ -162,13 +162,15 @@ CREATE TABLE plantdetails (
   details text,
   block_id INTEGER DEFAULT NULL,
   plantdetailscol TEXT DEFAULT NULL,
+  property_id INTEGER DEFAULT NULL,
   created_on TEXT DEFAULT NULL,
   created_by TEXT DEFAULT NULL,
   modified_on TEXT DEFAULT NULL,
   modified_by TEXT DEFAULT NULL,
-  FOREIGN KEY (block_id) REFERENCES blocks (block_id)
+  FOREIGN KEY (block_id) REFERENCES blocks (block_id),
+  FOREIGN KEY (property_id) REFERENCES property (property_id)
 );
-INSERT INTO plantdetails VALUES (1,'arabica','This is good varity1111',3,NULL,NULL,NULL,'2024-09-11 15:47:36',NULL),(2,'arabica','sdsdsd',1,NULL,'2024-09-12 14:44:28',NULL,NULL,NULL),(3,'robusta','Some varity',1,NULL,'2025-09-29 23:46:25','sys',NULL,NULL);
+INSERT INTO plantdetails (plant_id,plant_type,details,block_id,plantdetailscol,created_on,created_by,modified_on,modified_by) VALUES (1,'arabica','This is good varity1111',3,NULL,NULL,NULL,'2024-09-11 15:47:36',NULL),(2,'arabica','sdsdsd',1,NULL,'2024-09-12 14:44:28',NULL,NULL,NULL),(3,'robusta','Some varity',1,NULL,'2025-09-29 23:46:25','sys',NULL,NULL);
 DROP TABLE IF EXISTS property;
 CREATE TABLE property (
   property_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,

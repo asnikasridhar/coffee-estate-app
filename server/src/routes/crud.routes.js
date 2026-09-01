@@ -13,7 +13,9 @@ function scopedSelect(resource, cfg, userId, propertyId) {
   if (!propertyId || cfg.propertyMode === 'global') return rows(`${base} ORDER BY ${cfg.order} LIMIT 500`);
   if (cfg.propertyMode === 'direct') return rows(`${base} WHERE property_id = @propertyId ORDER BY ${cfg.order} LIMIT 500`, { propertyId });
   if (cfg.propertyMode === 'viaBlock') return rows(`${base} WHERE block_id IN (SELECT block_id FROM blocks WHERE property_id = @propertyId) ORDER BY ${cfg.order} LIMIT 500`, { propertyId });
-  if (cfg.propertyMode === 'viaPlant') return rows(`${base} WHERE plant_id IN (SELECT pd.plant_id FROM plantdetails pd JOIN blocks b ON b.block_id = pd.block_id WHERE b.property_id = @propertyId) ORDER BY ${cfg.order} LIMIT 500`, { propertyId });
+  if (cfg.propertyMode === 'viaPlant') return rows(`${base} WHERE plant_id IN (SELECT pd.plant_id FROM plantdetails pd WHERE pd.property_id = @propertyId) ORDER BY ${cfg.order} LIMIT 500`, { propertyId });
+  if (cfg.propertyMode === 'viaCropMaster') return rows(`${base} WHERE crop_id IN (SELECT crop_id FROM crop_master WHERE property_id = @propertyId) ORDER BY ${cfg.order} LIMIT 500`, { propertyId });
+  if (cfg.propertyMode === 'viaCropType') return rows(`${base} WHERE crop_type_id IN (SELECT ct.crop_type_id FROM crop_type_master ct JOIN crop_master c ON c.crop_id=ct.crop_id WHERE c.property_id = @propertyId) ORDER BY ${cfg.order} LIMIT 500`, { propertyId });
   if (cfg.propertyMode === 'viaCrop') return rows(`${base} WHERE crop_id IN (SELECT crop_id FROM cropdetails WHERE property_id = @propertyId) ORDER BY ${cfg.order} LIMIT 500`, { propertyId });
   return rows(`${base} ORDER BY ${cfg.order} LIMIT 500`);
 }

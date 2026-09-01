@@ -7,8 +7,11 @@ export const resources = {
   vendorSettlements: { table: 'laborvendor_settlement', id: 'laborvendor_settlement_id', order: 'running_wage_transaction_date DESC', propertyMode: 'global', allowed: ['laborvendor_id','settled_amount','advance_amount','running_wage_transaction_date','created_by','modified_by'] },
   wages: { table: 'wage', id: 'wage_id', order: 'wage_id DESC', propertyMode: 'global', allowed: ['wage_fixed','wage_variable','wage_fix_code','wage_ot_perhr_price','labor_id','created_by','modified_by'] },
   wageSettlements: { table: 'wage_settlement', id: 'running_wage_id', order: 'running_wage_transaction_date DESC', propertyMode: 'global', allowed: ['wage_id','settled_amount','advance_amount','running_wage_transaction_date','created_by','modified_by'] },
-  plants: { table: 'plantdetails', id: 'plant_id', order: 'plant_type', propertyMode: 'viaBlock', allowed: ['plant_type','details','block_id','plantdetailscol','created_by','modified_by'] },
-  plantInventory: { table: 'plant_inventory', id: 'plant_inventory_id', order: 'plant_inventory_id DESC', propertyMode: 'direct', allowed: ['property_id','block_id','sub_block_name','plant_id','plant_count','planting_date','spacing','status','notes','created_by','modified_by'] },
+  plants: { table: 'plantdetails', id: 'plant_id', order: 'plant_type', propertyMode: 'direct', allowed: ['property_id','plant_type','plantdetailscol','details','block_id','created_by','modified_by'] },
+  crops: { table: 'crop_master', id: 'crop_id', order: 'crop_name', propertyMode: 'direct', allowed: ['crop_name','property_id','created_by','modified_by'] },
+  cropTypes: { table: 'crop_type_master', id: 'crop_type_id', order: 'type_name', propertyMode: 'viaCropMaster', allowed: ['crop_id','type_name','block_id','created_by','modified_by'] },
+  varieties: { table: 'variety_master', id: 'variety_master_id', order: 'variety_name', propertyMode: 'viaCropType', allowed: ['variety_id','crop_type_id','variety_name','created_by','modified_by'] },
+  plantInventory: { table: 'plant_inventory', id: 'plant_inventory_id', order: 'plant_inventory_id DESC', propertyMode: 'direct', allowed: ['property_id','block_id','sub_block_name','variety_master_id','plant_count','planting_date','spacing','status','notes','created_by','modified_by'] },
   workActivities: { table: 'work_activity', id: 'work_activity_id', order: 'work_activity_name', propertyMode: 'direct', allowed: ['property_id','work_activity_name','work_activity_type','notes','created_by','modified_by'] },
   workAssignments: { table: 'work_assignment', id: 'work_assignment_id', order: 'work_date DESC, work_assignment_id DESC', propertyMode: 'direct', allowed: ['property_id','work_activity_id','labor_id','work_date','block_id','notes','created_by','modified_by'] },
   yieldTypes: { table: 'yieldtype', id: 'yieldtype_id', order: 'yieldtype_name', propertyMode: 'viaPlant', allowed: ['yieldtype_name','plant_id','created_by','modified_by'] },
@@ -24,7 +27,7 @@ export const resources = {
 };
 
 export function applyProperty(resource, payload, propertyId) {
-  if (['blocks','plantInventory','workActivities','workAssignments','assets','expenses','cropDetails','fertilizers','reports'].includes(resource)) {
+  if (['blocks','plants','crops','plantInventory','workActivities','workAssignments','assets','expenses','cropDetails','fertilizers','reports'].includes(resource)) {
     return { ...payload, property_id: Number(payload.property_id || propertyId) };
   }
   return payload;
