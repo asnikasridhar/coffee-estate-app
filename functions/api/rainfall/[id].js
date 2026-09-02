@@ -9,7 +9,7 @@ async function validBlock(env, blockId, propertyId) {
 export async function onRequestPatch({ request, env, params }) {
   try {
     const propertyId = propertyIdFromUrl(request);
-    const userId = userIdFromRequest(request);
+    const userId = await userIdFromRequest(request,env);
     await assertPropertyAccess(env, userId, propertyId);
     const b = await body(request);
     const blockId = b.block_id ? Number(b.block_id) : null;
@@ -23,7 +23,7 @@ export async function onRequestPatch({ request, env, params }) {
 export async function onRequestDelete({ request, env, params }) {
   try {
     const propertyId = propertyIdFromUrl(request);
-    const userId = userIdFromRequest(request);
+    const userId = await userIdFromRequest(request,env);
     await assertPropertyAccess(env, userId, propertyId);
     const result = await env.DB.prepare('DELETE FROM raindetails WHERE rain_id = ? AND COALESCE(property_id,(SELECT property_id FROM blocks WHERE block_id=raindetails.block_id)) = ?').bind(Number(params.id), propertyId).run();
     if (!result.meta.changes) return json({ error: 'Rainfall record not found for selected property' }, 404);

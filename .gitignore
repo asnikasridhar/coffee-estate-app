@@ -5,3 +5,6 @@ server/package-lock.json
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+*backup*.sql
+DB_Backup/
+client/dist/

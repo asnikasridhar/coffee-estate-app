@@ -5,7 +5,7 @@ export function onRequestOptions() { return options(); }
 export async function onRequestPatch({ request, env, params }) {
   try {
     const propertyId = propertyIdFromUrl(request);
-    const userId = userIdFromRequest(request);
+    const userId = await userIdFromRequest(request,env);
     await assertPropertyAccess(env, userId, propertyId);
     const b = await body(request);
     const existing = await first(env, 'SELECT attendance_id FROM attendance WHERE attendance_id = ? AND property_id = ?', Number(params.id), propertyId);
@@ -18,7 +18,7 @@ export async function onRequestPatch({ request, env, params }) {
 export async function onRequestDelete({ request, env, params }) {
   try {
     const propertyId = propertyIdFromUrl(request);
-    const userId = userIdFromRequest(request);
+    const userId = await userIdFromRequest(request,env);
     await assertPropertyAccess(env, userId, propertyId);
     const result = await env.DB.prepare('DELETE FROM attendance WHERE attendance_id = ? AND property_id = ?').bind(Number(params.id), propertyId).run();
     if (!result.meta.changes) return json({ error: 'Attendance record not found for selected property' }, 404);

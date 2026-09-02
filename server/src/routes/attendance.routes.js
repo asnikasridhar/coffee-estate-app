@@ -12,7 +12,7 @@ router.get('/', asyncHandler((req, res) => {
   if (userId) requireOwner(userId);
   if (userId && propertyId) assertPropertyAccess(userId, propertyId);
   const params = { ...dateRange(req), propertyId };
-  res.json(rows(`SELECT a.attendance_id, a.labor_id, date(a.entry_date) entry_date, a.attendance_value, l.name AS labor_name, COALESCE(w.wage_fixed + w.wage_variable, 0) AS wage, p.property_name, u.username AS user_name, ROUND(a.attendance_value * COALESCE(w.wage_fixed + w.wage_variable,0), 2) labor_cost FROM attendance a JOIN labors l ON l.labor_id = a.labor_id LEFT JOIN wage w ON w.labor_id = l.labor_id JOIN property p ON p.property_id = a.property_id JOIN users u ON u.user_id = a.user_id WHERE date(a.entry_date) BETWEEN date(@from) AND date(@to) ${propertyId ? 'AND a.property_id = @propertyId' : ''} ORDER BY a.entry_date DESC, a.attendance_id DESC`, params));
+  res.json(rows(`SELECT a.attendance_id, a.labor_id, date(a.entry_date) entry_date, a.attendance_value, l.name AS labor_name, COALESCE(w.wage_fixed + w.wage_variable, 0) AS wage, p.property_name, u.username AS user_name, ROUND(a.attendance_value * COALESCE(w.wage_fixed + w.wage_variable,0), 2) labor_cost FROM attendance a JOIN labors l ON l.labor_id = a.labor_id LEFT JOIN wage w ON w.wage_id=(SELECT w2.wage_id FROM wage w2 WHERE w2.labor_id=l.labor_id ORDER BY datetime(COALESCE(w2.modified_on,w2.created_on)) DESC,w2.wage_id DESC LIMIT 1) JOIN property p ON p.property_id = a.property_id JOIN users u ON u.user_id = a.user_id WHERE date(a.entry_date) BETWEEN date(@from) AND date(@to) ${propertyId ? 'AND a.property_id = @propertyId' : ''} ORDER BY a.entry_date DESC, a.attendance_id DESC`, params));
 }));
 
 const attendanceSchema = z.object({
