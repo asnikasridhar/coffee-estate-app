@@ -259,7 +259,7 @@ CREATE TABLE users (
   modified_by TEXT DEFAULT NULL,
   UNIQUE (username)
 );
-INSERT INTO users VALUES (1,'Asnika Sridhar','$2a$12$nQl5x2G/u3Tf32SPz3B9I.Vf/21Z3GwBOzMghErOKZOwO0.dGZNPC','owner',1,'asnikasridhar1@gmail.com',NULL,NULL,NULL,NULL),(3,'Pavan','pavan','owner',1,'pavan@bhushan.com',NULL,NULL,NULL,NULL),(4,'Ishaan','chiinipaapu','owner',1,'ishaan@baabi.com',NULL,NULL,NULL,NULL),(5,'pavan1','$2b$10$nxfr9MCtspOnq3dAoCyfS./IP5A6M0CuDb3kDLvt9R6Onpl.HFJMu','owner',1,'alexmahone@gmail.com','2024-09-11 17:17:25',NULL,NULL,NULL),(6,'UserTest123','$2b$10$eENSBPNgbOEe43gNwkhLYuVIOLplmKox3ZqrDXhmgqNxYKzDHFpI.','owner',1,'user@email.com','2025-09-29 23:28:25','sys',NULL,NULL);
+INSERT INTO users VALUES (1,'estateuser1','$2a$12$nQl5x2G/u3Tf32SPz3B9I.Vf/21Z3GwBOzMghErOKZOwO0.dGZNPC','owner',1,'asnikasridhar1@gmail.com',NULL,NULL,NULL,NULL),(3,'Pavan','pavan','owner',1,'pavan@bhushan.com',NULL,NULL,NULL,NULL),(4,'Ishaan','chiinipaapu','owner',1,'ishaan@baabi.com',NULL,NULL,NULL,NULL),(5,'pavan1','$2b$10$nxfr9MCtspOnq3dAoCyfS./IP5A6M0CuDb3kDLvt9R6Onpl.HFJMu','owner',1,'alexmahone@gmail.com','2024-09-11 17:17:25',NULL,NULL,NULL),(6,'UserTest123','$2b$10$eENSBPNgbOEe43gNwkhLYuVIOLplmKox3ZqrDXhmgqNxYKzDHFpI.','owner',1,'user@email.com','2025-09-29 23:28:25','sys',NULL,NULL);
 DROP TABLE IF EXISTS vendor;
 CREATE TABLE vendor (
   vendor_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
