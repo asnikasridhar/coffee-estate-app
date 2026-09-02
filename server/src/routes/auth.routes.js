@@ -16,8 +16,11 @@ router.post('/login', asyncHandler((req, res) => {
   if (!user) return reject();
 
   const parts=String(user.password||'').split('$');
-  const ok=parts.length===4&&parts[0]==='pbkdf2'&&Number(parts[1])>=100000&&pbkdf2Sync(password,Buffer.from(parts[2],'hex'),Number(parts[1]),32,'sha256').toString('hex')===parts[3];
+  const isPbkdf2=parts.length===4&&parts[0]==='pbkdf2'&&Number(parts[1])>=100000;
+  const legacyPlaintext=!isPbkdf2&&!String(user.password||'').startsWith('$2');
+  const ok=isPbkdf2?pbkdf2Sync(password,Buffer.from(parts[2],'hex'),Number(parts[1]),32,'sha256').toString('hex')===parts[3]:legacyPlaintext&&String(user.password||'')===password;
   if (!ok) return reject();
+  if(legacyPlaintext){const iterations=210000,salt=randomBytes(16),hash=pbkdf2Sync(password,salt,iterations,32,'sha256');run('UPDATE users SET password=?,modified_on=CURRENT_TIMESTAMP,modified_by=? WHERE user_id=?',[`pbkdf2$${iterations}$${salt.toString('hex')}$${hash.toString('hex')}`,'Security upgrade',user.user_id]);}
   run('DELETE FROM auth_login_attempt WHERE attempt_key=?',[attemptKey]);
 
   const safeUser = { user_id: user.user_id, username: user.username, email: user.email, role: user.role };
