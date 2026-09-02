@@ -22,12 +22,17 @@ export const resources = {
   cropDetails: { table: 'cropdetails', id: 'crop_id', order: 'crop_id DESC', propertyMode: 'direct', allowed: ['yield_obtained','selling_price','property_id','other_detail','created_by','modified_by'] },
   cropIncome: { table: 'crop_income', id: 'income_id', order: 'received_date DESC', propertyMode: 'viaCrop', allowed: ['crop_id','income_amount','received_date','created_by','modified_by'] },
   fertilizers: { table: 'fertilizers', id: 'fertilizer_id', order: 'date_of_application DESC', propertyMode: 'direct', allowed: ['fertilizer_name','date_of_application','property_id','other_details','created_by','modified_by'] },
+  fertilizerMasters: { table: 'fertilizer_master', id: 'fertilizer_master_id', order: 'fertilizer_name', propertyMode: 'global', allowed: ['fertilizer_name','grade','category','purchase_unit_id','base_unit_id','package_size','conversion_to_base','minimum_stock_base','is_active','notes','created_by','modified_by'] },
+  fertilizerPurchases: { table: 'fertilizer_purchase', id: 'fertilizer_purchase_id', order: 'purchase_date DESC, fertilizer_purchase_id DESC', propertyMode: 'direct', allowed: ['property_id','fertilizer_master_id','supplier_id','purchase_date','invoice_number','quantity','unit_id','quantity_base','rate_per_unit','total_amount','payment_status','payment_mode','expense_id','notes','created_by','modified_by'] },
+  fertilizerApplications: { table: 'fertilizer_application', id: 'fertilizer_application_id', order: 'application_date DESC, fertilizer_application_id DESC', propertyMode: 'direct', allowed: ['property_id','fertilizer_master_id','block_id','sub_block_name','variety_master_id','application_date','application_method','quantity','unit_id','quantity_base','work_assignment_id','notes','created_by','modified_by'] },
+  fertilizerAdjustments: { table: 'fertilizer_adjustment', id: 'fertilizer_adjustment_id', order: 'adjustment_date DESC, fertilizer_adjustment_id DESC', propertyMode: 'direct', allowed: ['property_id','fertilizer_master_id','adjustment_date','adjustment_type','direction','quantity','unit_id','quantity_base','reason','notes','created_by','modified_by'] },
+  fertilizerMovements: { table: 'fertilizer_stock_movement', id: 'fertilizer_stock_movement_id', order: 'movement_date DESC, fertilizer_stock_movement_id DESC', propertyMode: 'direct', allowed: ['property_id','fertilizer_master_id','movement_date','direction','movement_type','quantity_base','reference_type','reference_id','notes','created_by'] },
   reports: { table: 'reports', id: 'report_id', order: 'report_id DESC', propertyMode: 'direct', allowed: ['total_expenditure','total_revenue','profit_loss','property_id','created_by','modified_by'] },
   baseUnits: { table: 'baseunit', id: 'baseunit_id', order: 'baseunit_name', propertyMode: 'global', allowed: ['baseunit_name','created_by','modified_by'] }
 };
 
 export function applyProperty(resource, payload, propertyId) {
-  if (['blocks','plants','crops','plantInventory','workActivities','workAssignments','assets','expenses','cropDetails','fertilizers','reports'].includes(resource)) {
+  if (['blocks','plants','crops','plantInventory','workActivities','workAssignments','assets','expenses','cropDetails','fertilizers','fertilizerPurchases','fertilizerApplications','fertilizerAdjustments','fertilizerMovements','reports'].includes(resource)) {
     return { ...payload, property_id: Number(payload.property_id || propertyId) };
   }
   return payload;

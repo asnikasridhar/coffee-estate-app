@@ -3,6 +3,7 @@ import { Alert, Animated, BackHandler, Easing, Image, KeyboardAvoidingView, Link
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
+import FertilizerManagement from './FertilizerManagement';
 
 const today = new Date().toISOString().slice(0, 10);
 const GREEN = '#8a5527';
@@ -144,7 +145,7 @@ const fieldConfig = {
   settings:[]
 };
 
-const readResources = ['properties','blocks','baseUnits','assets','crops','cropTypes','varieties','plantInventory','yieldTypes','yieldRates','cropIncome','fertilizers','labors','vendors','laborVendors','wages','wageSettlements','vendorSettlements','expenseTypes','expenses','workActivities','workAssignments','reports'];
+const readResources = ['properties','blocks','baseUnits','assets','crops','cropTypes','varieties','plantInventory','yieldTypes','yieldRates','cropIncome','fertilizers','fertilizerMasters','fertilizerPurchases','fertilizerApplications','fertilizerAdjustments','fertilizerMovements','labors','vendors','laborVendors','wages','wageSettlements','vendorSettlements','expenseTypes','expenses','workActivities','workAssignments','reports'];
 const metaMirror = ['properties','blocks','crops','cropTypes','varieties','yieldTypes','yieldRates','wages','laborVendors','cropDetails','workActivities','attendanceLabors'];
 const optionSets = {
   statusOptions: [{id:'active',name:'Active'}, {id:'new',name:'New'}, {id:'replaced',name:'Replaced'}, {id:'dead',name:'Dead'}],
@@ -610,7 +611,8 @@ function ModuleScreen({ moduleKey, user, propertyId, data, setData, meta, reques
   if (moduleKey === 'labors') return <PeopleDirectoryScreen kind={moduleKey} user={user} data={data} request={request} reload={reload} t={t}/>;
   if (moduleKey === 'vendors') return <VendorDirectoryScreen user={user} data={data} request={request} reload={reload} t={t}/>;
   if (moduleKey === 'plantInventory') return <PlantInventoryHierarchyScreen user={user} propertyId={propertyId} data={data} request={request} reload={reload} t={t}/>;
-  if (['properties','blocks','plants','crops','cropTypes','varieties','baseUnits','fertilizers','workActivities'].includes(moduleKey)) return <CatalogDirectoryScreen kind={moduleKey} user={user} propertyId={propertyId} data={data} meta={meta} request={request} reload={reload} language={language} t={t}/>;
+  if (moduleKey === 'fertilizers') return <FertilizerManagement user={user} propertyId={propertyId} data={data} request={request} reload={reload}/>;
+  if (['properties','blocks','plants','crops','cropTypes','varieties','baseUnits','workActivities'].includes(moduleKey)) return <CatalogDirectoryScreen kind={moduleKey} user={user} propertyId={propertyId} data={data} meta={meta} request={request} reload={reload} language={language} t={t}/>;
 
   return <View><Text style={styles.screenTitle}>{moduleName(language,moduleKey)}</Text><View style={styles.card}>{editingId && <Text style={styles.editingBanner}>{t('edit')} #{editingId}</Text>}{fields.map(f => <SmartField key={f[0]} field={f} value={form[f[0]]} setValue={(v) => setForm(f[0] === 'block_id' && moduleKey === 'plantInventory' ? {...form,block_id:v,sub_block_name:''} : {...form,[f[0]]:v})} meta={meta} data={fieldData} t={t} />)}{moduleKey === 'workAssignments' && form.work_date && !attendedLaborIds.size && <Text style={styles.inlineWarning}>No matching attendance is loaded for {form.work_date}. Labourers remain visible below; records without attendance cannot be assigned.</Text>}<TouchableOpacity style={styles.primary} onPress={save}><Text style={styles.primaryText}>{editingId ? t('update') : t('save')}</Text></TouchableOpacity>{editingId && <TouchableOpacity style={styles.secondary} onPress={() => { setForm(defaultForm(moduleKey, propertyId)); setEditingId(null); }}><Text style={styles.secondaryText}>{t('cancelEdit')}</Text></TouchableOpacity>}</View><Section title={t('records')} right={`${filteredRows.length} ${t('entries')}`}>{hasDateFilter && <DateRangeFilter fromDate={fromDate} toDate={toDate} setFromDate={value => { setFromDate(value); setPage(1); }} setToDate={value => { setToDate(value); setPage(1); }} t={t} language={language} />}<RecordList rows={visibleRows} moduleKey={moduleKey} data={data} meta={meta} onEdit={edit} onDelete={remove} empty={t('noRecords')} language={language} /><Pagination page={page} pageCount={pageCount} setPage={setPage} t={t} /></Section></View>;
 }
