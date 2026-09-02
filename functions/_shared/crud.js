@@ -6,7 +6,7 @@ export const resources = {
   labors: { table: 'labors', id: 'labor_id', order: 'name', propertyMode: 'ownerColumn', ownerColumn:'user_id', allowed: ['user_id','name','age','adhar_card','bank_details','health_history','photo','address','emergency_details','created_by','modified_by'] },
   employees: { table: 'labors', id: 'labor_id', order: 'name', propertyMode: 'ownerColumn', ownerColumn:'user_id', allowed: ['user_id','name','age','adhar_card','bank_details','health_history','photo','address','emergency_details','created_by','modified_by'] },
   vendors: { table: 'vendor', id: 'vendor_id', order: 'vendorname', propertyMode: 'ownerColumn', ownerColumn:'user_id', allowed: ['user_id','vendorname','description','created_by','modified_by'] },
-  laborVendors: { table: 'laborvendor', id: 'laborvendor_id', order: 'laborvendor_id DESC', propertyMode: 'global', allowed: ['labor_id','vendor_id','vendor_labor_percentage','laborvendorcode','created_by','modified_by'] },
+  laborVendors: { table: 'laborvendor', id: 'laborvendor_id', order: 'laborvendor_id DESC', propertyMode: 'viaLaborOwner', allowed: ['labor_id','vendor_id','vendor_labor_percentage','laborvendorcode','created_by','modified_by'] },
   vendorSettlements: { table: 'laborvendor_settlement', id: 'laborvendor_settlement_id', order: 'running_wage_transaction_date DESC', propertyMode: 'global', allowed: ['laborvendor_id','settled_amount','advance_amount','running_wage_transaction_date','created_by','modified_by'] },
   wages: { table: 'wage', id: 'wage_id', order: 'wage_id DESC', propertyMode: 'global', allowed: ['wage_fixed','wage_variable','wage_fix_code','wage_ot_perhr_price','labor_id','created_by','modified_by'] },
   wageSettlements: { table: 'wage_settlement', id: 'running_wage_id', order: 'running_wage_transaction_date DESC', propertyMode: 'global', allowed: ['wage_id','settled_amount','advance_amount','running_wage_transaction_date','created_by','modified_by'] },
@@ -69,6 +69,7 @@ export async function listResource(request, env, resource) {
   const base = `SELECT * FROM ${cfg.table}`;
   if (resource === 'properties') return json(await all(env, `${base} WHERE user_id = ? ORDER BY ${cfg.order} LIMIT 500`, userId));
   if (cfg.propertyMode === 'ownerColumn') return json(await all(env, `${base} WHERE ${cfg.ownerColumn} = ? ORDER BY ${cfg.order} LIMIT 500`, userId));
+  if (cfg.propertyMode === 'viaLaborOwner') return json(await all(env, `${base} WHERE labor_id IN (SELECT labor_id FROM labors WHERE user_id = ?) ORDER BY ${cfg.order} LIMIT 500`, userId));
   if (cfg.propertyMode === 'global') return json(await all(env, `${base} ORDER BY ${cfg.order} LIMIT 500`));
   if (!propertyId && cfg.propertyMode === 'direct') return json({error:'Select a property first'},400);
   if (cfg.propertyMode === 'direct') return json(await all(env, `${base} WHERE property_id = ? ORDER BY ${cfg.order} LIMIT 500`, propertyId));
@@ -89,6 +90,11 @@ export async function createResource(request, env, resource) {
   let payload = normalizePayload(resource, applyProperty(resource, picked, propertyId, userId));
   if (payload.property_id) await assertPropertyAccess(env, userId, payload.property_id);
   if (cfg.propertyMode === 'ownerColumn') payload[cfg.ownerColumn] = userId;
+  if (cfg.propertyMode === 'viaLaborOwner') {
+    const labor = await first(env, 'SELECT labor_id FROM labors WHERE labor_id=? AND user_id=?', payload.labor_id, userId);
+    const vendor = await first(env, 'SELECT vendor_id FROM vendor WHERE vendor_id=? AND user_id=?', payload.vendor_id, userId);
+    if (!labor || !vendor) throw Object.assign(new Error('Select a labourer and vendor belonging to this account'), { status: 400 });
+  }
   payload = await normalizeBusinessPayload(env, resource, payload);
   const cols = Object.keys(payload).filter(k => payload[k] !== undefined);
   if (!cols.length) return json({ error: 'No valid fields supplied' }, 400);
@@ -138,6 +144,7 @@ export async function deleteResource(request, env, resource, id) {
 async function authorizedRecord(env,cfg,id,userId,propertyId){
   if(cfg.propertyMode==='owner')return first(env,`SELECT ${cfg.id} FROM ${cfg.table} WHERE ${cfg.id}=? AND user_id=?`,id,userId);
   if(cfg.propertyMode==='ownerColumn')return first(env,`SELECT ${cfg.id} FROM ${cfg.table} WHERE ${cfg.id}=? AND ${cfg.ownerColumn}=?`,id,userId);
+  if(cfg.propertyMode==='viaLaborOwner')return first(env,`SELECT lv.* FROM ${cfg.table} lv JOIN labors l ON l.labor_id=lv.labor_id WHERE lv.${cfg.id}=? AND l.user_id=?`,id,userId);
   if(cfg.propertyMode==='direct'){
     if(!propertyId)return null;
     return first(env,`SELECT * FROM ${cfg.table} WHERE ${cfg.id}=? AND property_id=?`,id,propertyId);

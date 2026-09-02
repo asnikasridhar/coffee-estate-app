@@ -11,6 +11,7 @@ function scopedSelect(resource, cfg, userId, propertyId) {
   const base = `SELECT * FROM ${cfg.table}`;
   if (resource === 'properties') return rows(`${base} WHERE user_id = @userId ORDER BY ${cfg.order} LIMIT 500`, { userId });
   if (cfg.propertyMode === 'ownerColumn') return rows(`${base} WHERE ${cfg.ownerColumn} = @userId ORDER BY ${cfg.order} LIMIT 500`, { userId });
+  if (cfg.propertyMode === 'viaLaborOwner') return rows(`${base} WHERE labor_id IN (SELECT labor_id FROM labors WHERE user_id = @userId) ORDER BY ${cfg.order} LIMIT 500`, { userId });
   if (cfg.propertyMode === 'global') return rows(`${base} ORDER BY ${cfg.order} LIMIT 500`);
   if (!propertyId && cfg.propertyMode === 'direct') throw Object.assign(new Error('Select a property first'), { status: 400 });
   if (cfg.propertyMode === 'direct') return rows(`${base} WHERE property_id = @propertyId ORDER BY ${cfg.order} LIMIT 500`, { propertyId });
@@ -25,6 +26,7 @@ function scopedSelect(resource, cfg, userId, propertyId) {
 function authorizedRecord(cfg, id, userId, propertyId) {
   if (cfg.propertyMode === 'owner') return row(`SELECT ${cfg.id} FROM ${cfg.table} WHERE ${cfg.id} = @id AND user_id = @userId`, { id, userId });
   if (cfg.propertyMode === 'ownerColumn') return row(`SELECT ${cfg.id} FROM ${cfg.table} WHERE ${cfg.id} = @id AND ${cfg.ownerColumn} = @userId`, { id, userId });
+  if (cfg.propertyMode === 'viaLaborOwner') return row(`SELECT lv.* FROM ${cfg.table} lv JOIN labors l ON l.labor_id=lv.labor_id WHERE lv.${cfg.id}=@id AND l.user_id=@userId`, { id, userId });
   if (cfg.propertyMode === 'direct') return propertyId ? row(`SELECT * FROM ${cfg.table} WHERE ${cfg.id} = @id AND property_id = @propertyId`, { id, propertyId }) : null;
   if (cfg.propertyMode === 'viaCropMaster') return row(`SELECT t.${cfg.id} FROM ${cfg.table} t JOIN crop_master c ON c.crop_id=t.crop_id JOIN property p ON p.property_id=c.property_id WHERE t.${cfg.id}=@id AND p.user_id=@userId`, { id, userId });
   if (cfg.propertyMode === 'viaCropType') return row(`SELECT t.${cfg.id} FROM ${cfg.table} t JOIN crop_type_master ct ON ct.crop_type_id=t.crop_type_id JOIN crop_master c ON c.crop_id=ct.crop_id JOIN property p ON p.property_id=c.property_id WHERE t.${cfg.id}=@id AND p.user_id=@userId`, { id, userId });
@@ -71,6 +73,11 @@ router.post('/:resource', asyncHandler((req, res) => {
   if (cfg.allowed.includes('created_by')) payload.created_by = req.body.created_by || 'Admin';
   if (req.params.resource === 'properties') payload.user_id = userId || payload.user_id;
   if (cfg.propertyMode === 'ownerColumn') payload[cfg.ownerColumn] = userId;
+  if (cfg.propertyMode === 'viaLaborOwner') {
+    const labor = row('SELECT labor_id FROM labors WHERE labor_id=@laborId AND user_id=@userId', { laborId: payload.labor_id, userId });
+    const vendor = row('SELECT vendor_id FROM vendor WHERE vendor_id=@vendorId AND user_id=@userId', { vendorId: payload.vendor_id, userId });
+    if (!labor || !vendor) throw Object.assign(new Error('Select a labourer and vendor belonging to this account'), { status: 400 });
+  }
   payload = applyProperty(req.params.resource, payload, propertyId);
   payload = normalizePayload(req.params.resource, payload);
   if (payload.property_id) assertPropertyAccess(userId, payload.property_id);

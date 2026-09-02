@@ -37,7 +37,8 @@
             "backgroundColor": "#f7f4ec"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

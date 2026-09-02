@@ -24,7 +24,7 @@ INSERT INTO raindetails VALUES (1,'2024-08-29 15:23:00',333,3,NULL,NULL,'2024-09
 
 INSERT INTO reports VALUES (1,222222,888889000,25,NULL,NULL,NULL,NULL,NULL),(2,200000,1000000,800000,NULL,NULL,NULL,NULL,NULL);
 
-INSERT INTO users VALUES (1,'Asnika Sridhar','$2a$12$nQl5x2G/u3Tf32SPz3B9I.Vf/21Z3GwBOzMghErOKZOwO0.dGZNPC','owner',1,'asnikasridhar1@gmail.com',NULL,NULL,NULL,NULL),(3,'Pavan','pavan','owner',1,'pavan@bhushan.com',NULL,NULL,NULL,NULL),(4,'Ishaan','chiinipaapu','owner',1,'ishaan@baabi.com',NULL,NULL,NULL,NULL),(5,'pavan1','$2b$10$nxfr9MCtspOnq3dAoCyfS./IP5A6M0CuDb3kDLvt9R6Onpl.HFJMu','owner',1,'alexmahone@gmail.com','2024-09-11 17:17:25',NULL,NULL,NULL),(6,'UserTest123','$2b$10$eENSBPNgbOEe43gNwkhLYuVIOLplmKox3ZqrDXhmgqNxYKzDHFpI.','owner',1,'user@email.com','2025-09-29 23:28:25','sys',NULL,NULL);
+INSERT INTO users VALUES (1,'estateuser1','$2a$12$nQl5x2G/u3Tf32SPz3B9I.Vf/21Z3GwBOzMghErOKZOwO0.dGZNPC','owner',1,'asnikasridhar1@gmail.com',NULL,NULL,NULL,NULL),(3,'Pavan','pavan','owner',1,'pavan@bhushan.com',NULL,NULL,NULL,NULL),(4,'Ishaan','chiinipaapu','owner',1,'ishaan@baabi.com',NULL,NULL,NULL,NULL),(5,'pavan1','$2b$10$nxfr9MCtspOnq3dAoCyfS./IP5A6M0CuDb3kDLvt9R6Onpl.HFJMu','owner',1,'alexmahone@gmail.com','2024-09-11 17:17:25',NULL,NULL,NULL),(6,'UserTest123','$2b$10$eENSBPNgbOEe43gNwkhLYuVIOLplmKox3ZqrDXhmgqNxYKzDHFpI.','owner',1,'user@email.com','2025-09-29 23:28:25','sys',NULL,NULL);
 
 INSERT INTO wage VALUES (1,100.00,100.00,'WG_LABNAME_25',50.00,1,'2025-10-13 04:52:18','sys',NULL,NULL),(2,150.00,100.00,'WG_LABNAME2_25',50.00,2,'2025-10-13 04:53:31','sys',NULL,NULL);
 
