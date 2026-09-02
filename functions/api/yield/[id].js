@@ -11,7 +11,7 @@ const ownedYield = `SELECT ys.yield_settlement_id FROM yield_settlement ys JOIN 
 export async function onRequestPatch({ request, env, params }) {
   try {
     const propertyId = propertyIdFromUrl(request);
-    const userId = userIdFromRequest(request);
+    const userId = await userIdFromRequest(request,env);
     await assertPropertyAccess(env, userId, propertyId);
     const b = await body(request);
     if (!await first(env, ownedYield, Number(params.id), propertyId)) return json({ error: 'Yield record not found for selected property' }, 404);
@@ -24,7 +24,7 @@ export async function onRequestPatch({ request, env, params }) {
 export async function onRequestDelete({ request, env, params }) {
   try {
     const propertyId = propertyIdFromUrl(request);
-    const userId = userIdFromRequest(request);
+    const userId = await userIdFromRequest(request,env);
     await assertPropertyAccess(env, userId, propertyId);
     if (!await first(env, ownedYield, Number(params.id), propertyId)) return json({ error: 'Yield record not found for selected property' }, 404);
     await env.DB.prepare('DELETE FROM yield_settlement WHERE yield_settlement_id = ?').bind(Number(params.id)).run();

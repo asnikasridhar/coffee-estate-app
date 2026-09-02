@@ -1,8 +1,14 @@
-import { row } from '../db.js';
+import { row, run } from '../db.js';
+import { createHash } from 'node:crypto';
 
 export function requestContext(req) {
+  const token=String(req.header('authorization')||'').replace(/^Bearer\s+/i,'').trim();
+  const tokenHash=token?createHash('sha256').update(token).digest('hex'):'';
+  const session=tokenHash?row(`SELECT s.auth_session_id,s.user_id FROM auth_session s JOIN users u ON u.user_id=s.user_id WHERE s.token_hash=? AND s.revoked_on IS NULL AND datetime(s.expires_on)>datetime('now') AND COALESCE(u.is_active,1)=1`,[tokenHash]):null;
+  if(!session)throw Object.assign(new Error('Authentication required'),{status:401});
+  run('UPDATE auth_session SET last_used_on=CURRENT_TIMESTAMP WHERE auth_session_id=?',[session.auth_session_id]);
   return {
-    userId: Number(req.query.userId || req.header('x-user-id') || 0) || null,
+    userId: Number(session.user_id),
     propertyId: Number(req.query.propertyId || req.header('x-property-id') || 0) || null
   };
 }

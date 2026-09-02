@@ -2,7 +2,7 @@ import { json, options, propertyIdFromUrl, userIdFromRequest, assertPropertyAcce
 export function onRequestOptions() { return options(); }
 export async function onRequestGet({ request, env }) {
   try {
-    const userId = userIdFromRequest(request);
+    const userId = await userIdFromRequest(request,env);
     const propertyId = propertyIdFromUrl(request);
     if (propertyId) await assertPropertyAccess(env, userId, propertyId);
     const blockWhere = propertyId ? 'WHERE property_id = ?' : '';

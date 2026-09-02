@@ -39,8 +39,8 @@ export function createApp() {
     }
     console.error(err);
     const message = err.message || 'Internal server error';
-    const status = /invalid|select|belong|missing|required|must have attendance|constraint/i.test(message) ? 400 : 500;
-    res.status(status).json({ error: message });
+    const status = Number(err.status) || (/invalid|select|belong|missing|required|must have attendance|constraint/i.test(message) ? 400 : 500);
+    res.status(status).json({ error: status >= 500 ? 'Internal server error' : message });
   });
 
   return app;

@@ -8,10 +8,9 @@ export const resources = [
 const savedUser = localStorage.getItem('estateUser');
 const savedProperty = localStorage.getItem('selectedPropertyId');
 const baseHeaders = () => {
-  const user = localStorage.getItem('estateUser');
+  const token = sessionStorage.getItem('estateAccessToken') || '';
   const propertyId = localStorage.getItem('selectedPropertyId') || '';
-  const parsed = user ? JSON.parse(user) : null;
-  return { 'Content-Type': 'application/json', 'x-user-id': parsed?.user_id ? String(parsed.user_id) : '', 'x-property-id': propertyId };
+  return { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '', 'x-property-id': propertyId };
 };
 const api = async (path: string, options?: RequestInit) => {
   const res = await fetch(path, { headers: baseHeaders(), ...options });
@@ -62,10 +61,10 @@ const slice = createSlice({
   reducers: {
     setSelectedPropertyId: (s, a:PayloadAction<string>) => { s.selectedPropertyId = a.payload; localStorage.setItem('selectedPropertyId', a.payload); },
     setDashboardRanges: (s, a:PayloadAction<Record<string,string>>) => { s.dashboardRanges = { ...s.dashboardRanges, ...a.payload }; localStorage.setItem('dashboardRanges', JSON.stringify(s.dashboardRanges)); },
-    logout: (s) => { s.user=null; s.selectedPropertyId=''; s.meta=null; s.dashboard=null; localStorage.removeItem('estateUser'); localStorage.removeItem('selectedPropertyId'); }
+    logout: (s) => { s.user=null; s.selectedPropertyId=''; s.meta=null; s.dashboard=null; sessionStorage.removeItem('estateAccessToken'); localStorage.removeItem('estateUser'); localStorage.removeItem('selectedPropertyId'); }
   },
   extraReducers: b => {
-    b.addCase(login.fulfilled, (s,a:any) => { s.user = a.payload.user; localStorage.setItem('estateUser', JSON.stringify(a.payload.user)); s.meta = { ...(s.meta || {}), properties: a.payload.properties }; if (!s.selectedPropertyId && a.payload.properties?.[0]) { s.selectedPropertyId = String(a.payload.properties[0].property_id); localStorage.setItem('selectedPropertyId', s.selectedPropertyId); } });
+    b.addCase(login.fulfilled, (s,a:any) => { s.user = a.payload.user; sessionStorage.setItem('estateAccessToken',a.payload.token); localStorage.setItem('estateUser', JSON.stringify(a.payload.user)); s.meta = { ...(s.meta || {}), properties: a.payload.properties }; if (!s.selectedPropertyId && a.payload.properties?.[0]) { s.selectedPropertyId = String(a.payload.properties[0].property_id); localStorage.setItem('selectedPropertyId', s.selectedPropertyId); } });
     b.addCase(loadOwnerProperties.fulfilled, (s,a) => { s.meta = { ...(s.meta || {}), properties: a.payload }; });
     b.addCase(loadMeta.fulfilled, (s,a) => { s.meta = a.payload; if (!s.selectedPropertyId && a.payload?.properties?.[0]) { s.selectedPropertyId = String(a.payload.properties[0].property_id); localStorage.setItem('selectedPropertyId', s.selectedPropertyId); } });
     b.addCase(loadDashboard.fulfilled, (s,a) => { s.dashboard = a.payload; });
