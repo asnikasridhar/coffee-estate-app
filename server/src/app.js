@@ -11,6 +11,7 @@ import attendanceRoutes from './routes/attendance.routes.js';
 import rainfallRoutes from './routes/rainfall.routes.js';
 import yieldRoutes from './routes/yield.routes.js';
 import crudRoutes from './routes/crud.routes.js';
+import financeRoutes from './routes/finance.routes.js';
 
 export function createApp() {
   const app = express();
@@ -31,6 +32,7 @@ export function createApp() {
   app.use('/api/attendance', attendanceRoutes);
   app.use('/api/rainfall', rainfallRoutes);
   app.use('/api/yield', yieldRoutes);
+  app.use('/api/finance', financeRoutes);
   app.use('/api', crudRoutes);
 
   app.use((err, _req, res, _next) => {
