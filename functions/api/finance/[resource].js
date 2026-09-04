@@ -1,0 +1,5 @@
+import { json, options, urlOf, fail } from '../../_shared/http.js';
+import { financeContext, financeOverview, financeSetup, financeList, financeCreate } from '../../_shared/finance.js';
+export function onRequestOptions(){return options();}
+export async function onRequestGet({request,env,params}){try{const {propertyId}=await financeContext(request,env);const seasonId=urlOf(request).searchParams.get('seasonId');if(params.resource==='overview')return json(await financeOverview(env,propertyId,seasonId));if(params.resource==='setup')return json(await financeSetup(env,propertyId));const result=await financeList(env,propertyId,params.resource,seasonId);return result===null?json({error:'Unknown finance resource'},404):json(result);}catch(err){return fail(err,'Finance request failed');}}
+export async function onRequestPost({request,env,params}){try{const {propertyId}=await financeContext(request,env);return await financeCreate(request,env,propertyId,params.resource);}catch(err){return fail(err,'Finance save failed');}}

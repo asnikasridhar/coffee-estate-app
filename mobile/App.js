@@ -29,6 +29,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
 import FertilizerManagement from "./FertilizerManagement";
+import FinanceModule from "./FinanceModule";
 import AppIcon from "./src/components/AppIcon";
 import { colors as themeColors } from "./src/theme/tokens";
 
@@ -1091,7 +1092,7 @@ const GROUP_NAMES = {
     reports: "నివేదికలు",
   },
 };
-const QUICK_ACTIONS = [
+const LEGACY_QUICK_ACTIONS = [
   ["Attendance", "✅", "attendanceQuick"],
   ["Rain", "🌧️", "rainfallQuick"],
   ["Expense", "💵", "expenses"],
@@ -1109,7 +1110,11 @@ const QUICK_ACTIONS = [
   ["Crop Income", "💰", "cropIncome"],
   ["Assets", "🚜", "assets"],
 ];
-const DEFAULT_FAVORITES = [
+const QUICK_ACTIONS = [
+  ["Finance", "finance", "finance"],
+  ...LEGACY_QUICK_ACTIONS.filter(([, , key]) => !["expenses", "wageSettlements", "yieldQuick", "cropIncome"].includes(key)),
+];
+const LEGACY_DEFAULT_FAVORITES = [
   "attendanceQuick",
   "rainfallQuick",
   "expenses",
@@ -1118,6 +1123,7 @@ const DEFAULT_FAVORITES = [
   "wageSettlements",
   "yieldQuick",
 ];
+const DEFAULT_FAVORITES = ["finance", ...LEGACY_DEFAULT_FAVORITES.filter(key => !["expenses", "wageSettlements", "yieldQuick"].includes(key))].slice(0, 7);
 const DATE_FIELDS = {
   attendanceQuick: "entry_date",
   rainfallQuick: "recorded_date",
@@ -1131,7 +1137,7 @@ const DATE_FIELDS = {
   plantInventory: "planting_date",
 };
 
-const moduleGroups = [
+const legacyModuleGroups = [
   {
     key: "estate",
     title: "Estate Setup",
@@ -1187,6 +1193,11 @@ const moduleGroups = [
   },
 ];
 
+const hiddenFinanceModules = new Set(["yieldTypes", "yieldRates", "cropIncome", "laborVendors", "wages", "wageSettlements", "vendorSettlements", "yieldQuick", "expenses", "reports"]);
+const moduleGroups = [
+  ...legacyModuleGroups.map(group => ({ ...group, items: group.items.filter(item => !hiddenFinanceModules.has(item)) })),
+  { key: "finance", title: "Finance", icon: "finance", items: ["finance"] },
+];
 const labels = {
   properties: "Estate Properties",
   blocks: "Blocks & Sub-blocks",
@@ -1218,6 +1229,7 @@ const labels = {
   dashboardReport: "Dashboard Reports",
   notifications: "Notifications",
   settings: "Settings",
+  finance: "Finance",
 };
 
 const resourceOf = {
@@ -1997,7 +2009,7 @@ export default function App() {
         setFavorites={updateFavorites}
         close={() => setFavoriteEditorOpen(false)}
       />
-      <BottomNav screen={screen} setScreen={navigate} t={t} />
+      <BottomNav screen={screen} setScreen={navigate} openModule={openModule} activeModule={activeModule} t={t} />
     </SafeAreaView>
   );
 }
@@ -2791,7 +2803,7 @@ function FavoriteEditor({ visible, favorites, setFavorites, close }) {
                   ]}
                   onPress={() => toggle(key)}
                 >
-                  <Text style={styles.favoriteIcon}>{icon}</Text>
+                  {icon === "finance" ? <AppIcon name="finance" size={24} color={themeColors.secondary}/> : <Text style={styles.favoriteIcon}>{icon}</Text>}
                   <Text style={styles.favoriteName}>{title}</Text>
                   <View
                     style={[
@@ -3347,6 +3359,16 @@ function ModuleScreen({
         data={data}
         request={request}
         reload={reload}
+      />
+    );
+  if (moduleKey === "finance")
+    return (
+      <FinanceModule
+        user={user}
+        propertyId={propertyId}
+        data={data}
+        meta={meta}
+        request={request}
       />
     );
   if (
@@ -7741,7 +7763,7 @@ function IconGrid({ items, openModule, onMore }) {
           style={styles.iconTile}
           onPress={() => (key === "favorites" ? onMore?.() : openModule(key))}
         >
-          <Text style={styles.icon}>{ic}</Text>
+          {ic === "finance" ? <AppIcon name="finance" size={28} color={themeColors.secondary}/> : <Text style={styles.icon}>{ic}</Text>}
           <Text style={styles.iconLabel}>{t}</Text>
         </TouchableOpacity>
       ))}
@@ -7809,12 +7831,12 @@ function RecordList({
     </View>
   );
 }
-function BottomNav({ screen, setScreen, t }) {
+function BottomNav({ screen, setScreen, openModule, activeModule, t }) {
   const nav = [
     ["home", t("home"), "home"],
-    ["add", t("add"), "add"],
+    ["finance", "Finance", "finance"],
+    ["work", "Work", "workAssignments"],
     ["modules", t("modules"), "blocks"],
-    ["reports", t("reports"), "reports"],
     ["more", t("more"), "more"],
   ];
   return (
@@ -7823,16 +7845,16 @@ function BottomNav({ screen, setScreen, t }) {
         <TouchableOpacity
           key={n[0]}
           style={styles.navItem}
-          onPress={() => setScreen(n[0])}
+          onPress={() => n[0] === "finance" ? openModule("finance") : n[0] === "work" ? openModule("workAssignments") : setScreen(n[0])}
         >
           <AppIcon
             name={n[2]}
             size={20}
-            color={screen === n[0] ? themeColors.secondary : "#777"}
+            color={(screen === n[0] || (screen === "module" && ((n[0] === "finance" && activeModule === "finance") || (n[0] === "work" && activeModule === "workAssignments")))) ? themeColors.secondary : "#777"}
           />
           <Text
             numberOfLines={1}
-            style={[styles.navText, screen === n[0] && styles.navActive]}
+            style={[styles.navText, (screen === n[0] || (screen === "module" && ((n[0] === "finance" && activeModule === "finance") || (n[0] === "work" && activeModule === "workAssignments")))) && styles.navActive]}
           >
             {n[1]}
           </Text>
