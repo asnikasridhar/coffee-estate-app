@@ -1,13 +1,15 @@
 {
   "expo": {
     "name": "JavaTerrain",
-    "slug": "estate-manager-mobile-sdk54",
+    "slug": "estate-app-asubeige",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./logo.png",
     "userInterfaceStyle": "light",
     "sdkVersion": "54.0.0",
+	"newArchEnabled": false,
     "android": {
+	 "versionCode": 3,
       "package": "com.estate.manager.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./logo.png",
@@ -42,7 +44,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "ef956e66-703e-4ce8-a09d-717f26a6eeef"
+        "projectId": "de27a295-5802-4edd-bfd7-f9378075cfcb"
       }
     }
   }

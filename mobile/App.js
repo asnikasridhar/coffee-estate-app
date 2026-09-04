@@ -1725,6 +1725,7 @@ export default function App() {
   const [favoriteEditorOpen, setFavoriteEditorOpen] = useState(false);
   const [language, setLanguage] = useState("en");
   const navigationHistory = useRef([]);
+  const contentScrollRef = useRef(null);
   const t = uiTranslator(language);
 
   const property = (meta.properties || []).find(
@@ -1855,6 +1856,12 @@ export default function App() {
     navigationHistory.current.push(screen);
     setScreen(next);
   }
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      contentScrollRef.current?.scrollTo({ y: 0, animated: false });
+    });
+  }, [screen, activeModule, propertyId]);
   function goBack() {
     const previous = navigationHistory.current.pop();
     if (previous) setScreen(previous);
@@ -1920,6 +1927,7 @@ export default function App() {
         t={t}
       />
       <ScrollView
+        ref={contentScrollRef}
         style={styles.content}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={loadAll} />
@@ -1931,6 +1939,7 @@ export default function App() {
           <Home
             dashboard={dashboard}
             data={data}
+            user={user}
             openModule={openModule}
             favorites={favorites}
             editFavorites={() => setFavoriteEditorOpen(true)}
@@ -2614,6 +2623,7 @@ function WeatherHero({ property, t }) {
 function Home({
   dashboard,
   data,
+  user,
   openModule,
   favorites,
   editFavorites,
@@ -2622,6 +2632,8 @@ function Home({
   language,
 }) {
   const m = dashboard?.management || {};
+  const [showAllAttention, setShowAllAttention] = useState(false);
+  const hasMoreAttention = (m.upcomingWork || []).length > 2;
   const summary = [
     ["Today’s Work", m.todayWork || 0, "workAssignments"],
     ["Active Labour", m.activeLabour || 0, "labors"],
@@ -2648,6 +2660,7 @@ function Home({
             : new Date().getHours() < 17
               ? "Afternoon"
               : "Evening"}
+          {user?.username ? `, ${user.username}` : ""}
         </Text>
         <Text style={styles.managementEstate}>
           {property?.property_name || "Estate overview"}
@@ -2706,19 +2719,29 @@ function Home({
         ))}
       </View>
       {(Number(m.lowStock) > 0 || (m.upcomingWork || []).length > 0) && (
-        <Section title="Attention" right="View all">
+        <Section
+          title="Attention"
+          right={hasMoreAttention ? (showAllAttention ? "Show less" : "View all") : ""}
+          onRightPress={
+            hasMoreAttention
+              ? () => setShowAllAttention((current) => !current)
+              : undefined
+          }
+        >
           {Number(m.lowStock) > 0 && (
             <Suggestion
               warning
               text={`${m.lowStock} fertilizer item(s) at or below minimum stock.`}
             />
-          )}{" "}
-          {(m.upcomingWork || []).slice(0, 2).map((x) => (
+          )}
+          {(m.upcomingWork || [])
+            .slice(0, showAllAttention ? undefined : 2)
+            .map((x) => (
             <Suggestion
               key={x.work_assignment_id}
               text={`${x.work_activity_name} · ${String(x.work_date).slice(0, 10)}`}
             />
-          ))}
+            ))}
         </Section>
       )}
     </View>
@@ -2816,7 +2839,7 @@ function Modules({ openModule, t, language }) {
       {moduleGroups.map((g) => (
         <View key={g.key} style={styles.card}>
           <Text style={styles.sectionTitle}>
-            {g.icon} {GROUP_NAMES[language]?.[g.key] || g.title}
+            {GROUP_NAMES[language]?.[g.key] || g.title}
           </Text>
           {g.items.map((i) => (
             <TouchableOpacity
@@ -3454,7 +3477,7 @@ const CATALOG_UI = {
   properties: {
     singular: "Property",
     plural: "Estate Properties",
-    icon: "🏡",
+    icon: "properties",
     subtitle: "Manage estate locations and acreage",
   },
   blocks: {
@@ -3502,7 +3525,7 @@ const CATALOG_UI = {
   workActivities: {
     singular: "Work Activity",
     plural: "Work Activity Management",
-    icon: "work",
+    icon: "workActivities",
     subtitle: "Manage assignable estate work",
   },
 };
@@ -3629,7 +3652,6 @@ function CatalogDirectoryScreen({
     [form, setForm] = useState(blank()),
     [editing, setEditing] = useState(null),
     [selected, setSelected] = useState(null),
-    [selectedVendorIds, setSelectedVendorIds] = useState([]),
     [search, setSearch] = useState(""),
     [page, setPage] = useState(1),
     [saving, setSaving] = useState(false);
@@ -4519,6 +4541,15 @@ function PlantInventoryHierarchyScreen({
     blockName = (id) =>
       blocks.find((row) => String(row.block_id) === String(id))?.block_name ||
       "No block";
+  const inventoryIcon = (row) => {
+    const type = typeForVariety(row.variety_master_id),
+      context = `${cropName(type?.crop_id)} ${type?.type_name || ""} ${varietyName(row.variety_master_id)}`.toLowerCase();
+    if (/coffee|arabica|robusta/.test(context)) return "cafe-outline";
+    if (/vanilla|flower/.test(context)) return "flower-outline";
+    if (/pepper/.test(context)) return "ellipse-outline";
+    if (/tea|leaf/.test(context)) return "leaf-outline";
+    return "plantInventory";
+  };
   useEffect(() => {
     if (!crops.some((row) => String(row.crop_id) === String(form.crop_id)))
       setForm((current) => ({
@@ -4743,7 +4774,7 @@ function PlantInventoryHierarchyScreen({
                 style={styles.inventoryGridCard}
               >
                 <View style={styles.inventoryGridHead}>
-                  <AppIcon name="plantInventory" size={23} color="#8a5527" />
+                  <AppIcon name={inventoryIcon(row)} size={23} color="#8a5527" />
                   <Text style={styles.inventoryGridCount}>
                     {row.plant_count || 0}
                   </Text>
@@ -4759,11 +4790,19 @@ function PlantInventoryHierarchyScreen({
                   {row.sub_block_name ? ` / ${row.sub_block_name}` : ""}
                 </Text>
                 <View style={styles.recordActions}>
-                  <TouchableOpacity onPress={() => edit(row)}>
-                    <Text style={styles.edit}>Edit</Text>
+                  <TouchableOpacity
+                    accessibilityLabel="Edit plant inventory"
+                    style={styles.compactAction}
+                    onPress={() => edit(row)}
+                  >
+                    <AppIcon name="edit" size={17} color="#8a5527" />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => remove(row)}>
-                    <Text style={styles.delete}>Delete</Text>
+                  <TouchableOpacity
+                    accessibilityLabel="Delete plant inventory"
+                    style={styles.compactAction}
+                    onPress={() => remove(row)}
+                  >
+                    <AppIcon name="delete" size={17} color="#8a5527" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -4953,6 +4992,8 @@ function PeopleDirectoryScreen({ kind, user, data, request, reload, t }) {
     [form, setForm] = useState(emptyForm),
     [editing, setEditing] = useState(null),
     [selected, setSelected] = useState(null),
+    [selectedVendorIds, setSelectedVendorIds] = useState([]),
+    [vendorPickerOpen, setVendorPickerOpen] = useState(false),
     [search, setSearch] = useState(""),
     [page, setPage] = useState(1),
     [saving, setSaving] = useState(false);
@@ -5175,37 +5216,103 @@ function PeopleDirectoryScreen({ kind, user, data, request, reload, t }) {
               <Text style={styles.fieldLabel}>
                 Vendors / Contractors (Optional, select multiple)
               </Text>
-              <View style={styles.vendorChoiceGrid}>
-                {(data.vendors || []).map((vendor) => {
-                  const id = String(vendor.vendor_id),
-                    active = selectedVendorIds.includes(id);
-                  return (
-                    <TouchableOpacity
-                      key={`labor-vendor-choice-${id}`}
-                      style={[
-                        styles.vendorChoice,
-                        active && styles.vendorChoiceActive,
-                      ]}
-                      onPress={() =>
-                        setSelectedVendorIds((current) =>
-                          active
-                            ? current.filter((value) => value !== id)
-                            : [...current, id],
+              <TouchableOpacity
+                style={styles.multiSelectField}
+                onPress={() => setVendorPickerOpen(true)}
+              >
+                <Text
+                  numberOfLines={2}
+                  style={
+                    selectedVendorIds.length
+                      ? styles.multiSelectValue
+                      : styles.multiSelectPlaceholder
+                  }
+                >
+                  {selectedVendorIds.length
+                    ? (data.vendors || [])
+                        .filter((vendor) =>
+                          selectedVendorIds.includes(String(vendor.vendor_id)),
                         )
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.vendorChoiceText,
-                          active && styles.vendorChoiceTextActive,
-                        ]}
+                        .map((vendor) => vendor.vendorname)
+                        .join(", ")
+                    : "Select vendors / contractors"}
+                </Text>
+                <AppIcon name="chevron-down" size={18} color="#8a5527" />
+              </TouchableOpacity>
+              <Text style={styles.peopleHint}>
+                {selectedVendorIds.length
+                  ? `${selectedVendorIds.length} vendor${selectedVendorIds.length === 1 ? "" : "s"} selected`
+                  : "No vendor selected — labour will be treated as direct labour."}
+              </Text>
+              <Modal
+                visible={vendorPickerOpen}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setVendorPickerOpen(false)}
+              >
+                <View style={styles.modalBack}>
+                  <View style={styles.multiSelectModal}>
+                    <View style={styles.favoriteHead}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.modalTitle}>Select Vendors</Text>
+                        <Text style={styles.favoriteHint}>
+                          Choose multiple, or leave empty for direct labour
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.closeButton}
+                        onPress={() => setVendorPickerOpen(false)}
                       >
-                        {active ? "✓ " : ""}{vendor.vendorname}
+                        <Text style={styles.closeButtonText}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <ScrollView style={styles.multiSelectList}>
+                      {(data.vendors || []).map((vendor) => {
+                        const id = String(vendor.vendor_id),
+                          active = selectedVendorIds.includes(id);
+                        return (
+                          <TouchableOpacity
+                            key={`labor-vendor-choice-${id}`}
+                            style={styles.multiSelectOption}
+                            onPress={() =>
+                              setSelectedVendorIds((current) =>
+                                active
+                                  ? current.filter((value) => value !== id)
+                                  : [...current, id],
+                              )
+                            }
+                          >
+                            <View
+                              style={[
+                                styles.multiSelectCheck,
+                                active && styles.multiSelectCheckActive,
+                              ]}
+                            >
+                              {active && (
+                                <AppIcon name="checkmark" size={15} color="#fff" />
+                              )}
+                            </View>
+                            <Text style={styles.multiSelectOptionText}>
+                              {vendor.vendorname}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                      {!data.vendors?.length && (
+                        <Text style={styles.muted}>No vendors are registered.</Text>
+                      )}
+                    </ScrollView>
+                    <TouchableOpacity
+                      style={styles.primary}
+                      onPress={() => setVendorPickerOpen(false)}
+                    >
+                      <Text style={styles.primaryText}>
+                        Done ({selectedVendorIds.length})
                       </Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
+                  </View>
+                </View>
+              </Modal>
               {!data.vendors?.length && (
                 <Text style={styles.peopleHint}>
                   No vendors are registered. This labourer will remain direct.
@@ -7599,14 +7706,19 @@ function FieldText({ label, value, onChangeText, ...props }) {
     </View>
   );
 }
-function Section({ title, right, children }) {
+function Section({ title, right, onRightPress, children }) {
   return (
     <View style={styles.card}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{title}</Text>
-        {right !== undefined && right !== null && right !== "" && (
-          <Text style={styles.sectionRight}>{String(right)}</Text>
-        )}
+        {right !== undefined && right !== null && right !== "" &&
+          (onRightPress ? (
+            <TouchableOpacity onPress={onRightPress} hitSlop={8}>
+              <Text style={styles.sectionRight}>{String(right)}</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.sectionRight}>{String(right)}</Text>
+          ))}
       </View>
       {children}
     </View>
@@ -9276,6 +9388,16 @@ const styles = StyleSheet.create({
   inventoryGridCount: { color: "#8a5527", fontSize: 16, fontWeight: "900" },
   inventoryGridTitle: { color: DARK, fontSize: 13, fontWeight: "900" },
   inventoryGridMeta: { color: "#756253", fontSize: 9.5, marginTop: 5 },
+  compactAction: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f5eadc",
+    borderWidth: 1,
+    borderColor: "#d8c3aa",
+  },
   vendorChoiceGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
   vendorChoice: {
     borderWidth: 1,
@@ -9288,6 +9410,53 @@ const styles = StyleSheet.create({
   vendorChoiceActive: { backgroundColor: "#8a5527", borderColor: "#8a5527" },
   vendorChoiceText: { color: "#6a4b34", fontSize: 10, fontWeight: "800" },
   vendorChoiceTextActive: { color: "#fff" },
+  multiSelectField: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#d8c3aa",
+    backgroundColor: "#fffaf3",
+    borderRadius: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    marginBottom: 7,
+  },
+  multiSelectValue: { flex: 1, color: DARK, fontSize: 11, fontWeight: "700" },
+  multiSelectPlaceholder: { flex: 1, color: "#928172", fontSize: 11 },
+  multiSelectModal: {
+    maxHeight: "72%",
+    width: "92%",
+    alignSelf: "center",
+    backgroundColor: "#fffaf3",
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#d8c3aa",
+  },
+  multiSelectList: { marginVertical: 12 },
+  multiSelectOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eadfce",
+  },
+  multiSelectCheck: {
+    width: 23,
+    height: 23,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#a77a52",
+    backgroundColor: "#fff",
+  },
+  multiSelectCheckActive: { backgroundColor: "#8a5527", borderColor: "#8a5527" },
+  multiSelectOptionText: { flex: 1, color: DARK, fontSize: 12, fontWeight: "800" },
   catalogCardStats: {
     fontSize: 9.5,
     color: "#087847",
