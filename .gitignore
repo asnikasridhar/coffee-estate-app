@@ -8,3 +8,5 @@ server/package-lock.json
 *backup*.sql
 DB_Backup/
 client/dist/
+.wrangler-test-config/
+mobile/coverage/

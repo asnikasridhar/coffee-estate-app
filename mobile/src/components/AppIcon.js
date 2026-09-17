@@ -42,6 +42,7 @@ const names = {
   success: "checkmark-circle-outline",
   back: "chevron-back",
   edit: "create-outline",
+  archive: "archive-outline",
   delete: "trash-outline",
   document: "document-text-outline",
   sheet: "grid-outline",

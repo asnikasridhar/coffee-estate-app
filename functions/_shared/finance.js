@@ -7,17 +7,17 @@ export async function financeContext(request, env) {
   await assertPropertyAccess(env, userId, propertyId);
   return { userId, propertyId };
 }
-async function season(env, propertyId, seasonId) {
+export async function season(env, propertyId, seasonId) {
   if (!seasonId) return null;
   const value = await first(env, 'SELECT * FROM finance_season WHERE season_id=? AND property_id=?', Number(seasonId), propertyId);
   if (!value) throw Object.assign(new Error('Season does not belong to selected property'), { status: 400 });
   return value;
 }
-async function crop(env, propertyId, cropId) {
+export async function crop(env, propertyId, cropId) {
   const value = await first(env, 'SELECT crop_id FROM crop_master WHERE crop_id=? AND property_id=?', Number(cropId), propertyId);
   if (!value) throw Object.assign(new Error('Crop does not belong to selected property'), { status: 400 });
 }
-async function yieldType(env, cropId, varietyId, yieldTypeId) {
+export async function yieldType(env, cropId, varietyId, yieldTypeId) {
   const value = await first(env, `SELECT fyt.finance_yield_type_id FROM finance_yield_type fyt JOIN variety_master vm ON vm.variety_master_id=fyt.variety_master_id JOIN crop_type_master ct ON ct.crop_type_id=vm.crop_type_id WHERE fyt.finance_yield_type_id=? AND vm.variety_master_id=? AND ct.crop_id=?`, Number(yieldTypeId), Number(varietyId), Number(cropId));
   if (!value) throw Object.assign(new Error('Yield type, variety and crop do not match'), { status: 400 });
 }
@@ -37,12 +37,13 @@ export async function financeOverview(env, propertyId, seasonId) {
 
 export async function financeSetup(env, propertyId) {
   return {
-    seasons:await all(env,`SELECT fs.*,cm.crop_name FROM finance_season fs JOIN crop_master cm ON cm.crop_id=fs.crop_id WHERE fs.property_id=? ORDER BY date(fs.start_date) DESC`,propertyId),
-    cycles:await all(env,`SELECT * FROM finance_settlement_cycle WHERE property_id=? ORDER BY status,cycle_name`,propertyId),
+    seasons:await all(env,`SELECT fs.*,cm.crop_name FROM finance_season fs JOIN crop_master cm ON cm.crop_id=fs.crop_id WHERE fs.property_id=? AND fs.status<>'archived' ORDER BY date(fs.start_date) DESC`,propertyId),
+    cycles:await all(env,`SELECT * FROM finance_settlement_cycle WHERE property_id=? AND status<>'archived' ORDER BY cycle_name`,propertyId),
     engagements:await all(env,`SELECT e.*,l.name labor_name,v.vendorname FROM finance_labour_engagement e JOIN labors l ON l.labor_id=e.labor_id LEFT JOIN vendor v ON v.vendor_id=e.vendor_id WHERE e.property_id=? ORDER BY l.name`,propertyId),
-    wageRules:await all(env,`SELECT wr.*,l.name labor_name,fs.season_name,bu.baseunit_name FROM finance_wage_rule wr JOIN labors l ON l.labor_id=wr.labor_id LEFT JOIN finance_season fs ON fs.season_id=wr.season_id LEFT JOIN baseunit bu ON bu.baseunit_id=wr.variable_unit_id WHERE wr.property_id=? ORDER BY date(wr.effective_from) DESC`,propertyId),
-    commissionRules:await all(env,`SELECT cr.*,l.name labor_name,v.vendorname,fs.season_name FROM finance_vendor_commission_rule cr JOIN finance_labour_engagement e ON e.labour_engagement_id=cr.labour_engagement_id JOIN labors l ON l.labor_id=e.labor_id JOIN vendor v ON v.vendor_id=e.vendor_id LEFT JOIN finance_season fs ON fs.season_id=cr.season_id WHERE cr.property_id=? ORDER BY date(cr.effective_from) DESC`,propertyId),
-    yieldTypes:await all(env,`SELECT fyt.*,vm.variety_name,ct.type_name,cm.crop_name,bu.baseunit_name FROM finance_yield_type fyt JOIN variety_master vm ON vm.variety_master_id=fyt.variety_master_id JOIN crop_type_master ct ON ct.crop_type_id=vm.crop_type_id JOIN crop_master cm ON cm.crop_id=ct.crop_id JOIN baseunit bu ON bu.baseunit_id=fyt.default_unit_id WHERE cm.property_id=? ORDER BY cm.crop_name,vm.variety_name,fyt.yield_type_name`,propertyId),
+    wageRules:await all(env,`SELECT wr.*,l.name labor_name,fs.season_name,bu.baseunit_name FROM finance_wage_rule wr JOIN labors l ON l.labor_id=wr.labor_id LEFT JOIN finance_season fs ON fs.season_id=wr.season_id LEFT JOIN baseunit bu ON bu.baseunit_id=wr.variable_unit_id WHERE wr.property_id=? AND wr.status<>'archived' ORDER BY date(wr.effective_from) DESC`,propertyId),
+    commissionRules:await all(env,`SELECT cr.*,l.name labor_name,v.vendorname,fs.season_name FROM finance_vendor_commission_rule cr JOIN finance_labour_engagement e ON e.labour_engagement_id=cr.labour_engagement_id JOIN labors l ON l.labor_id=e.labor_id JOIN vendor v ON v.vendor_id=e.vendor_id LEFT JOIN finance_season fs ON fs.season_id=cr.season_id WHERE cr.property_id=? AND cr.status<>'archived' ORDER BY date(cr.effective_from) DESC`,propertyId),
+    expenseTypes:await all(env,`SELECT * FROM expensetype ORDER BY expense_name`),
+    yieldTypes:await all(env,`SELECT fyt.*,vm.variety_name,ct.type_name,cm.crop_id,cm.crop_name,bu.baseunit_name FROM finance_yield_type fyt JOIN variety_master vm ON vm.variety_master_id=fyt.variety_master_id JOIN crop_type_master ct ON ct.crop_type_id=vm.crop_type_id JOIN crop_master cm ON cm.crop_id=ct.crop_id JOIN baseunit bu ON bu.baseunit_id=fyt.default_unit_id WHERE cm.property_id=? AND fyt.status<>'archived' ORDER BY cm.crop_name,vm.variety_name,fyt.yield_type_name`,propertyId),
     buyers:await all(env,`SELECT vendor_id buyer_id,vendorname buyer_name,description FROM vendor WHERE user_id=(SELECT user_id FROM property WHERE property_id=?) ORDER BY vendorname`,propertyId)
   };
 }

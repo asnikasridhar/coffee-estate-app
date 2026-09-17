@@ -39,6 +39,10 @@ const DARK = "#3f2616";
 const SOFT = "#f5eee3";
 const LINE = "#dfcfba";
 const WEATHER_API_KEY = process.env.EXPO_PUBLIC_WEATHER_API_KEY || "";
+// Disabled by default while the external weather integration is unavailable.
+// Set this Expo public variable to "true" when the feature is ready to return.
+const WEATHER_FEATURE_ENABLED =
+  process.env.EXPO_PUBLIC_ENABLE_WEATHER === "true";
 const PRODUCTION_API_BASE = "https://coffee-estate-app.pages.dev/api";
 const FAVORITES_KEY = "estate-app-favorite-modules";
 const LANGUAGE_KEY = "javaterrain-language";
@@ -565,6 +569,14 @@ function uiTranslator(language) {
       : COMMON_UI[language]?.[key] || core(key);
 }
 function moduleName(language, key) {
+  const cropNames = {
+    kn: { crops: "ಬೆಳೆ ಮಾಸ್ಟರ್", cropTypes: "ಬೆಳೆ ಪ್ರಕಾರ ಮಾಸ್ಟರ್" },
+    ta: { crops: "பயிர் பட்டியல்", cropTypes: "பயிர் வகை பட்டியல்" },
+    ml: { crops: "വിള പട്ടിക", cropTypes: "വിള തരം പട്ടിക" },
+    hi: { crops: "फसल सूची", cropTypes: "फसल प्रकार सूची" },
+    te: { crops: "పంట జాబితా", cropTypes: "పంట రకం జాబితా" },
+  };
+  if (cropNames[language]?.[key]) return cropNames[language][key];
   return MODULE_TRANSLATIONS[language]?.[key] || labels[key] || key;
 }
 const FIELD_WORDS = {
@@ -736,7 +748,8 @@ const FIELD_WORDS = {
 };
 function fieldName(language, key, fallback) {
   if (language === "en") return fallback;
-  const words = FIELD_WORDS[language] || {};
+  const cropWords = { kn: "ಬೆಳೆ", ta: "பயிர்", ml: "വിള", hi: "फसल", te: "పంట" };
+  const words = { ...(FIELD_WORDS[language] || {}), crop: cropWords[language] || "crop" };
   return key
     .replace(/_id$/, "")
     .split("_")
@@ -1198,6 +1211,7 @@ const moduleGroups = [
   ...legacyModuleGroups.map(group => ({ ...group, items: group.items.filter(item => !hiddenFinanceModules.has(item)) })),
   { key: "finance", title: "Finance", icon: "finance", items: ["finance"] },
 ];
+const HOME_MODULE_KEYS = [...new Set(moduleGroups.flatMap((group) => group.items))];
 const labels = {
   properties: "Estate Properties",
   blocks: "Blocks & Sub-blocks",
@@ -1841,7 +1855,10 @@ export default function App() {
   useEffect(() => {
     AsyncStorage.getItem(FAVORITES_KEY)
       .then((value) => {
-        if (value) setFavorites(JSON.parse(value).slice(0, 8));
+        if (value) {
+          const saved = JSON.parse(value).filter((key) => HOME_MODULE_KEYS.includes(key)).slice(0, 8);
+          setFavorites(saved.length ? saved : DEFAULT_FAVORITES);
+        }
       })
       .catch(() => {});
   }, []);
@@ -1938,13 +1955,21 @@ export default function App() {
         setPropertyId={setPropertyId}
         t={t}
       />
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
       <ScrollView
         ref={contentScrollRef}
         style={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={loadAll} />
         }
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, styles.keyboardBody]}
       >
         {!!error && <Text style={styles.error}>{error}</Text>}
         {screen === "home" && (
@@ -2003,12 +2028,14 @@ export default function App() {
           />
         )}
       </ScrollView>
-      <FavoriteEditor
-        visible={favoriteEditorOpen}
-        favorites={favorites}
-        setFavorites={updateFavorites}
-        close={() => setFavoriteEditorOpen(false)}
-      />
+      </KeyboardAvoidingView>
+        <FavoriteEditor
+          visible={favoriteEditorOpen}
+          favorites={favorites}
+          setFavorites={updateFavorites}
+          close={() => setFavoriteEditorOpen(false)}
+          language={language}
+        />
       <BottomNav screen={screen} setScreen={navigate} openModule={openModule} activeModule={activeModule} t={t} />
     </SafeAreaView>
   );
@@ -2632,6 +2659,17 @@ function WeatherHero({ property, t }) {
   );
 }
 
+const HOME_LABELS = {
+  kn: ["ಇಂದಿನ ಕೆಲಸ","ಸಕ್ರಿಯ ಕಾರ್ಮಿಕರು","ತಿಂಗಳ ವೆಚ್ಚ","ಕಡಿಮೆ ದಾಸ್ತಾನು","ಸಕ್ರಿಯ ಬ್ಲಾಕ್‌ಗಳು","ಬ್ಲಾಕ್ ವಿಸ್ತೀರ್ಣ","ಮುಖ್ಯ ಬೆಳೆಗಳು","ಈ ತಿಂಗಳ ಮಳೆ","ಶುಭೋದಯ","ಶುಭ ಮಧ್ಯಾಹ್ನ","ಶುಭ ಸಂಜೆ","ಎಸ್ಟೇಟ್ ಅವಲೋಕನ","ಇಂದಿನ ಸಂಕ್ಷಿಪ್ತ ನೋಟ","ತ್ವರಿತ ಕಾರ್ಯಗಳು","ಕೆಲಸ ನಿಯೋಜಿಸಿ","ಹಾಜರಾತಿ","ವೆಚ್ಚ ಸೇರಿಸಿ","ಗೊಬ್ಬರ ಅನ್ವಯಿಸಿ","ಗಮನಿಸಿ","ಕಡಿಮೆ ತೋರಿಸಿ","ಎಲ್ಲವನ್ನೂ ನೋಡಿ","ಗೊಬ್ಬರ ವಸ್ತುಗಳು ಕನಿಷ್ಠ ದಾಸ್ತಾನಿನಲ್ಲಿವೆ."],
+  ta: ["இன்றைய வேலை","செயலில் உள்ள தொழிலாளர்கள்","மாதச் செலவு","குறைந்த இருப்பு","செயலில் உள்ள பிரிவுகள்","பிரிவு பரப்பளவு","முக்கிய பயிர்கள்","இந்த மாத மழை","காலை வணக்கம்","மதிய வணக்கம்","மாலை வணக்கம்","தோட்ட மேலோட்டம்","இன்றைய சுருக்கம்","விரைவு செயல்கள்","வேலை ஒதுக்கு","வருகை","செலவு சேர்","உரம் இடு","கவனம்","குறைவாக காட்டு","அனைத்தையும் காட்டு","உரப் பொருட்கள் குறைந்தபட்ச இருப்பில் உள்ளன."],
+  ml: ["ഇന്നത്തെ ജോലി","സജീവ തൊഴിലാളികൾ","മാസ ചെലവ്","കുറഞ്ഞ സ്റ്റോക്ക്","സജീവ ബ്ലോക്കുകൾ","ബ്ലോക്ക് വിസ്തീർണ്ണം","പ്രധാന വിളകൾ","ഈ മാസത്തെ മഴ","സുപ്രഭാതം","ശുഭ ഉച്ച","ശുഭ സായാഹ്നം","എസ്റ്റേറ്റ് അവലോകനം","ഇന്നത്തെ സംഗ്രഹം","ദ്രുത പ്രവർത്തനങ്ങൾ","ജോലി നൽകുക","ഹാജർ","ചെലവ് ചേർക്കുക","വളം പ്രയോഗിക്കുക","ശ്രദ്ധ","കുറച്ച് കാണിക്കുക","എല്ലാം കാണുക","വള ഇനങ്ങൾ കുറഞ്ഞ സ്റ്റോക്കിലാണ്."],
+  hi: ["आज का कार्य","सक्रिय मज़दूर","मासिक खर्च","कम स्टॉक","सक्रिय ब्लॉक","ब्लॉक क्षेत्रफल","मुख्य फसलें","इस माह की बारिश","सुप्रभात","नमस्कार","शुभ संध्या","एस्टेट सारांश","आज का संक्षिप्त विवरण","त्वरित कार्य","कार्य सौंपें","उपस्थिति","खर्च जोड़ें","उर्वरक डालें","ध्यान दें","कम दिखाएँ","सभी देखें","उर्वरक वस्तुएँ न्यूनतम स्टॉक पर हैं।"],
+  te: ["నేటి పని","క్రియాశీల కార్మికులు","నెలవారీ ఖర్చు","తక్కువ నిల్వ","క్రియాశీల బ్లాక్‌లు","బ్లాక్ విస్తీర్ణం","ప్రధాన పంటలు","ఈ నెల వర్షం","శుభోదయం","శుభ మధ్యాహ్నం","శుభ సాయంత్రం","ఎస్టేట్ అవలోకనం","నేటి సంక్షిప్త సమాచారం","త్వరిత చర్యలు","పని కేటాయించు","హాజరు","ఖర్చు జోడించు","ఎరువు వేయండి","గమనించండి","తక్కువ చూపు","అన్నీ చూడండి","ఎరువు వస్తువులు కనిష్ట నిల్వ వద్ద ఉన్నాయి."],
+};
+const HOME_KEYS=["Today’s Work","Active Labour","Monthly Expense","Low Stock","Active Blocks","Block Area","Main Crops","Rain This Month","Morning","Afternoon","Evening","Estate overview","Today at a glance","Quick actions","Assign Work","Attendance","Add Expense","Apply Fertilizer","Attention","Show less","View all","fertilizer item(s) at or below minimum stock."];
+const HOME_EXTRA={kn:{Edit:"ಸಂಪಾದಿಸಿ"},ta:{Edit:"திருத்து"},ml:{Edit:"തിരുത്തുക"},hi:{Edit:"संपादित करें"},te:{Edit:"సవరించు"}};
+function homeLabel(language,label){const index=HOME_KEYS.indexOf(label);return HOME_EXTRA[language]?.[label]||(index>=0&&HOME_LABELS[language]?.[index])||label;}
+
 function Home({
   dashboard,
   data,
@@ -2644,42 +2682,45 @@ function Home({
   language,
 }) {
   const m = dashboard?.management || {};
+  const h = (label) => homeLabel(language, label);
   const [showAllAttention, setShowAllAttention] = useState(false);
   const hasMoreAttention = (m.upcomingWork || []).length > 2;
   const summary = [
-    ["Today’s Work", m.todayWork || 0, "workAssignments"],
-    ["Active Labour", m.activeLabour || 0, "labors"],
+    [h("Today’s Work"), m.todayWork || 0, "workAssignments"],
+    [h("Active Labour"), m.activeLabour || 0, "labors"],
     [
-      "Monthly Expense",
+      h("Monthly Expense"),
       `₹${Number(m.monthlyExpense || 0).toLocaleString("en-IN")}`,
       "expenses",
     ],
-    ["Low Stock", m.lowStock || 0, "warning"],
+    [h("Low Stock"), m.lowStock || 0, "warning"],
   ];
   const overview = [
-    ["Active Blocks", m.activeBlocks || 0],
-    ["Block Area", `${Number(m.blockArea || 0).toFixed(1)} ac`],
-    ["Main Crops", (m.mainCrops || []).join(", ") || "—"],
-    ["Rain This Month", `${Number(m.rainMonth || 0).toFixed(1)} mm`],
+    [h("Active Blocks"), m.activeBlocks || 0],
+    [h("Block Area"), `${Number(m.blockArea || 0).toFixed(1)} ac`],
+    [h("Main Crops"), (m.mainCrops || []).join(", ") || "—"],
+    [h("Rain This Month"), `${Number(m.rainMonth || 0).toFixed(1)} mm`],
   ];
   return (
     <View>
       <View style={styles.managementGreeting}>
         <Text style={styles.managementHello}>
-          Good{" "}
+          {language === "en" ? "Good " : ""}
           {new Date().getHours() < 12
-            ? "Morning"
+            ? h("Morning")
             : new Date().getHours() < 17
-              ? "Afternoon"
-              : "Evening"}
+              ? h("Afternoon")
+              : h("Evening")}
           {user?.username ? `, ${user.username}` : ""}
         </Text>
         <Text style={styles.managementEstate}>
-          {property?.property_name || "Estate overview"}
+          {property?.property_name || h("Estate overview")}
         </Text>
       </View>
-      <WeatherHero property={property} t={t} />
-      <Text style={styles.managementSection}>Today at a glance</Text>
+      {WEATHER_FEATURE_ENABLED ? (
+        <WeatherHero property={property} t={t} />
+      ) : null}
+      <Text style={styles.managementSection}>{h("Today at a glance")}</Text>
       <View style={styles.managementGrid}>
         {summary.map((x) => (
           <TouchableOpacity
@@ -2701,25 +2742,31 @@ function Home({
           </TouchableOpacity>
         ))}
       </View>
-      <Text style={styles.managementSection}>Quick actions</Text>
+      <View style={styles.managementSectionRow}>
+        <Text style={styles.managementSection}>{h("Quick actions")}</Text>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Edit quick actions"
+          style={styles.managementEditActions}
+          onPress={editFavorites}
+        >
+          <AppIcon name="edit" size={16} color={themeColors.secondary} />
+          <Text style={styles.managementEditActionsText}>{h("Edit")}</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.managementActions}>
-        {[
-          ["workAssignments", "Assign Work"],
-          ["attendanceQuick", "Attendance"],
-          ["expenses", "Add Expense"],
-          ["fertilizers", "Apply Fertilizer"],
-        ].map((x) => (
+        {favorites.filter((key) => HOME_MODULE_KEYS.includes(key)).slice(0, 8).map((key) => (
           <TouchableOpacity
-            key={x[0]}
+            key={key}
             style={styles.managementAction}
-            onPress={() => openModule(x[0])}
+            onPress={() => openModule(key)}
           >
-            <AppIcon name={x[0]} color={themeColors.secondary} />
-            <Text style={styles.managementActionText}>{x[1]}</Text>
+            <AppIcon name={key} color={themeColors.secondary} />
+            <Text style={styles.managementActionText}>{moduleName(language, key)}</Text>
           </TouchableOpacity>
         ))}
       </View>
-      <Text style={styles.managementSection}>Estate overview</Text>
+      <Text style={styles.managementSection}>{h("Estate overview")}</Text>
       <View style={styles.managementOverview}>
         {overview.map((x) => (
           <View key={x[0]} style={styles.managementOverviewItem}>
@@ -2732,8 +2779,8 @@ function Home({
       </View>
       {(Number(m.lowStock) > 0 || (m.upcomingWork || []).length > 0) && (
         <Section
-          title="Attention"
-          right={hasMoreAttention ? (showAllAttention ? "Show less" : "View all") : ""}
+          title={h("Attention")}
+          right={hasMoreAttention ? (showAllAttention ? h("Show less") : h("View all")) : ""}
           onRightPress={
             hasMoreAttention
               ? () => setShowAllAttention((current) => !current)
@@ -2743,7 +2790,7 @@ function Home({
           {Number(m.lowStock) > 0 && (
             <Suggestion
               warning
-              text={`${m.lowStock} fertilizer item(s) at or below minimum stock.`}
+              text={`${m.lowStock} ${h("fertilizer item(s) at or below minimum stock.")}`}
             />
           )}
           {(m.upcomingWork || [])
@@ -2760,7 +2807,7 @@ function Home({
   );
 }
 
-function FavoriteEditor({ visible, favorites, setFavorites, close }) {
+function FavoriteEditor({ visible, favorites, setFavorites, close, language }) {
   const toggle = (key) => {
     if (favorites.includes(key))
       return setFavorites(favorites.filter((item) => item !== key));
@@ -2792,7 +2839,7 @@ function FavoriteEditor({ visible, favorites, setFavorites, close }) {
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.favoriteList}>
-            {QUICK_ACTIONS.map(([title, icon, key]) => {
+            {HOME_MODULE_KEYS.map((key) => {
               const active = favorites.includes(key);
               return (
                 <TouchableOpacity
@@ -2803,8 +2850,8 @@ function FavoriteEditor({ visible, favorites, setFavorites, close }) {
                   ]}
                   onPress={() => toggle(key)}
                 >
-                  {icon === "finance" ? <AppIcon name="finance" size={24} color={themeColors.secondary}/> : <Text style={styles.favoriteIcon}>{icon}</Text>}
-                  <Text style={styles.favoriteName}>{title}</Text>
+                  <AppIcon name={key} size={24} color={themeColors.secondary}/>
+                  <Text style={styles.favoriteName}>{moduleName(language, key)}</Text>
                   <View
                     style={[
                       styles.favoriteCheck,
@@ -3353,13 +3400,14 @@ function ModuleScreen({
     );
   if (moduleKey === "fertilizers")
     return (
-      <FertilizerManagement
+          <FertilizerManagement
         user={user}
         propertyId={propertyId}
         data={data}
         request={request}
-        reload={reload}
-      />
+            reload={reload}
+            language={language}
+          />
     );
   if (moduleKey === "finance")
     return (
@@ -7872,6 +7920,7 @@ const styles = StyleSheet.create({
   },
   content: { flex: 1 },
   body: { padding: 12, paddingBottom: Platform.OS === "android" ? 132 : 108 },
+  keyboardBody: { paddingBottom: Platform.OS === "android" ? 280 : 180 },
   header: {
     minHeight: 72,
     paddingHorizontal: 12,
@@ -8147,6 +8196,23 @@ const styles = StyleSheet.create({
     marginTop: 5,
     marginBottom: 8,
   },
+  managementSectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  managementEditActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 4,
+  },
+  managementEditActionsText: {
+    color: themeColors.secondary,
+    fontSize: 10,
+    fontWeight: "800",
+  },
   managementGrid: { flexDirection: "row", gap: 7, marginBottom: 12 },
   managementKpi: {
     flex: 1,
@@ -8170,10 +8236,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 3,
   },
-  managementActions: { flexDirection: "row", gap: 7, marginBottom: 12 },
+  managementActions: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginBottom: 12 },
   managementAction: {
-    flex: 1,
-    minWidth: 0,
+    width: "23%",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fffdf9",

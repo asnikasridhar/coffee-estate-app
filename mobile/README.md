@@ -17,10 +17,13 @@ npm start
 
 The login screen does not ask users to configure a backend URL.
 
-Live dashboard weather uses WeatherAPI. The included development key can be
-overridden without editing the app:
+Live dashboard weather is currently hidden because the external API integration
+is unavailable. The implementation remains in place for a later release. To
+explicitly enable it, provide both the feature flag and a WeatherAPI key before
+starting Expo:
 
 ```powershell
+$env:EXPO_PUBLIC_ENABLE_WEATHER='true'
 $env:EXPO_PUBLIC_WEATHER_API_KEY='YOUR_WEATHERAPI_KEY'
 $env:EXPO_PUBLIC_WEATHER_LOCATION='bengaluru'
 ```
