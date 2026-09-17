@@ -70,3 +70,12 @@ export function fail(err, label = 'Request failed') {
   return json({ error: safe || label }, status);
 }
 export function requiredProperty(propertyId) { if (!propertyId) return json({ error: 'property_id required' }, 400); return null; }
+export async function withFinanceLog({request,params}, action, work) {
+  const started=Date.now(),requestId=(request.headers.get('x-request-id')||crypto.randomUUID()).slice(0,100);
+  let response;
+  try { response=await work(); }
+  catch(err) { console.error(JSON.stringify({timestamp:new Date().toISOString(),level:'ERROR',event:'finance_api',request_id:requestId,action,entity:params.resource,record_id:params.id,property_id:propertyIdFromUrl(request),duration_ms:Date.now()-started,error:String(err?.message||err).replace(/[\r\n\t]/g,' ').slice(0,300)})); throw err; }
+  const level=response.status>=500?'ERROR':response.status>=400?'WARN':'INFO';
+  console[level==='ERROR'?'error':level==='WARN'?'warn':'log'](JSON.stringify({timestamp:new Date().toISOString(),level,event:'finance_api',request_id:requestId,action,entity:params.resource,record_id:params.id,property_id:propertyIdFromUrl(request),status:response.status,duration_ms:Date.now()-started}));
+  const headers=new Headers(response.headers);headers.set('x-request-id',requestId);return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+}

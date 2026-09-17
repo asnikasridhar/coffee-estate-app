@@ -11,6 +11,7 @@
     "start": "npm run start --prefix server",
     "dev:mobile": "npm run dev --prefix server",
     "mobile": "npm run start --prefix mobile"
+    ,"test:finance": "npm run test:finance --prefix server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

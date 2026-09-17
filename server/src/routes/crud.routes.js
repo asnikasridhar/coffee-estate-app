@@ -30,6 +30,7 @@ function authorizedRecord(cfg, id, userId, propertyId) {
   if (cfg.propertyMode === 'direct') return propertyId ? row(`SELECT * FROM ${cfg.table} WHERE ${cfg.id} = @id AND property_id = @propertyId`, { id, propertyId }) : null;
   if (cfg.propertyMode === 'viaCropMaster') return row(`SELECT t.${cfg.id} FROM ${cfg.table} t JOIN crop_master c ON c.crop_id=t.crop_id JOIN property p ON p.property_id=c.property_id WHERE t.${cfg.id}=@id AND p.user_id=@userId`, { id, userId });
   if (cfg.propertyMode === 'viaCropType') return row(`SELECT t.${cfg.id} FROM ${cfg.table} t JOIN crop_type_master ct ON ct.crop_type_id=t.crop_type_id JOIN crop_master c ON c.crop_id=ct.crop_id JOIN property p ON p.property_id=c.property_id WHERE t.${cfg.id}=@id AND p.user_id=@userId`, { id, userId });
+  if (cfg.propertyMode === 'global') return row(`SELECT ${cfg.id} FROM ${cfg.table} WHERE ${cfg.id}=@id`, { id });
   return null;
 }
 
