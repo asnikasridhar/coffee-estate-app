@@ -9,17 +9,17 @@ describe('Finance shared Choice',()=>{
   test('loads, searches, selects, persists on rerender, reopens and dismisses',async()=>{
     const onChange=jest.fn();
     const view=await render(<Choice label="Vendor" value="" onChange={onChange} options={options}/>);
-    fireEvent.press(view.getByText('Select'));
+    await fireEvent.press(view.getByText('Select'));
     expect(await view.findByText('Vendor 12')).toBeTruthy();
-    fireEvent.changeText(await view.findByPlaceholderText('Search vendor...'),'Vendor 11');
+    await fireEvent.changeText(await view.findByPlaceholderText('Search vendor...'),'Vendor 11');
     expect(await view.findByText('Vendor 11')).toBeTruthy();
-    fireEvent.press(await view.findByText('Vendor 11'));
+    await fireEvent.press(await view.findByText('Vendor 11'));
     expect(onChange).toHaveBeenCalledWith('11');
-    view.rerender(<Choice label="Vendor" value="11" onChange={onChange} options={options}/>);
+    await view.rerender(<Choice label="Vendor" value="11" onChange={onChange} options={options}/>);
     expect(view.getByText('Vendor 11')).toBeTruthy();
-    fireEvent.press(view.getByText('Vendor 11'));
+    await fireEvent.press(view.getByText('Vendor 11'));
     expect(await view.findByPlaceholderText('Search vendor...')).toBeTruthy();
-    fireEvent.press(await view.findByText('Vendor 11'));
+    await fireEvent.press(view.getAllByText('Vendor 11').at(-1));
   });
 });
 
