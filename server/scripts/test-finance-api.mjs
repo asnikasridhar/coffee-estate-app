@@ -28,6 +28,42 @@ try{
   const updatedExpenseType=await crud(`/expenseTypes/${createdExpenseType.expensetype_id}`,{method:'PATCH',body:JSON.stringify({expense_code:expenseCode,expense_name:'Updated test expense type',current_rate:0,modified_by:'Finance test'})});assert(updatedExpenseType.expense_name==='Updated test expense type','Expense type update returned record not found or stale data');await crud(`/expenseTypes/${createdExpenseType.expensetype_id}`,{method:'DELETE'});
   const crop=db.prepare('SELECT crop_id FROM crop_master WHERE property_id=? LIMIT 1').get(owner.property_id); const variety=db.prepare(`SELECT vm.variety_master_id FROM variety_master vm JOIN crop_type_master ct ON ct.crop_type_id=vm.crop_type_id JOIN crop_master cm ON cm.crop_id=ct.crop_id WHERE cm.property_id=? LIMIT 1`).get(owner.property_id); const unit=db.prepare('SELECT baseunit_id FROM baseunit ORDER BY baseunit_id LIMIT 1').get(); const buyer=db.prepare('SELECT vendor_id FROM vendor WHERE user_id=? LIMIT 1').get(owner.user_id);
   if(!crop||!variety||!unit||!buyer)throw new Error('Crop, variety, unit and buyer fixtures are required');
+  const linkedLabor=db.prepare('SELECT labor_id FROM propertylabor WHERE property_id=? LIMIT 1').get(owner.property_id);
+  assert(linkedLabor,'Assigned labour fixture required');
+  const link=db.prepare('INSERT INTO laborvendor(labor_id,vendor_id,laborvendorcode) VALUES(?,?,?) RETURNING *').get(linkedLabor.labor_id,buyer.vendor_id,`commission-test-${Date.now()}`);
+  const linkedSetup=await call('/setup');
+  assert(linkedSetup.vendorLabours.some(x=>x.laborvendor_id===link.laborvendor_id&&x.labor_name&&x.vendorname),'Existing vendor link missing from finance dropdown data');
+  const commissionBody={laborvendor_id:link.laborvendor_id,effective_from:'2026-01-01',commission_percentage:10};
+  const linkedRule=await call('/commissionRules',{method:'POST',body:JSON.stringify(commissionBody)});
+  const savedRule=db.prepare('SELECT * FROM finance_vendor_commission_rule WHERE vendor_commission_rule_id=?').get(linkedRule.id);
+  const savedEngagement=db.prepare('SELECT * FROM finance_labour_engagement WHERE labour_engagement_id=?').get(savedRule.labour_engagement_id);
+  assert(savedEngagement.labor_id===linkedLabor.labor_id&&savedEngagement.vendor_id===buyer.vendor_id&&savedEngagement.property_id===owner.property_id,'Commission did not resolve vendor link correctly');
+  await call(`/commissionRules/${linkedRule.id}`,{method:'PATCH',body:JSON.stringify({...commissionBody,commission_percentage:12})});
+  assert(db.prepare('SELECT labour_engagement_id FROM finance_vendor_commission_rule WHERE vendor_commission_rule_id=?').get(linkedRule.id).labour_engagement_id===savedRule.labour_engagement_id,'Editing duplicated vendor engagement');
+  let invalidLinkRejected=false;try{await call('/commissionRules',{method:'POST',body:JSON.stringify({...commissionBody,laborvendor_id:-1})})}catch{invalidLinkRejected=true}
+  assert(invalidLinkRejected,'Invalid vendor link accepted');
+  await call(`/commissionRules/${linkedRule.id}`,{method:'DELETE'});
+  // Exercise the actual Cloudflare finance code with a transactional D1 adapter.
+  const {financeSetup,financeCreate,saveCommissionRule}=await import('../../functions/_shared/finance.js');
+  const d1={prepare(sql){return {bind(...args){return {...this,args}},args:[],async all(){return {results:db.prepare(sql).all(...this.args)}},async first(){return db.prepare(sql).get(...this.args)||null},run(){const r=db.prepare(sql).run(...this.args);return {meta:{changes:r.changes,last_row_id:Number(r.lastInsertRowid)}}}}},async batch(statements){return db.transaction(()=>statements.map(x=>x.run()))()}};
+  const env={DB:d1};
+  const cloudSetup=await financeSetup(env,owner.property_id);
+  assert(cloudSetup.vendorLabours.some(x=>x.laborvendor_id===link.laborvendor_id),'Cloudflare setup omitted vendor mapping');
+  assert(!(await financeSetup(env,-1)).vendorLabours.length,'Cloudflare exposed another property vendor mapping');
+  const cloudBody={...commissionBody,effective_from:'2020-01-01'};
+  const beforeCount=db.prepare('SELECT COUNT(*) n FROM finance_labour_engagement').get().n;
+  const cloudResponse=await financeCreate(new Request('http://localhost/api/finance/commissionRules',{method:'POST',body:JSON.stringify(cloudBody)}),env,owner.property_id,'commissionRules');
+  const cloudRule=await cloudResponse.json();
+  assert(cloudResponse.status===201&&cloudRule.id,'Cloudflare commission creation failed');
+  assert(db.prepare('SELECT COUNT(*) n FROM finance_labour_engagement').get().n===beforeCount+1,'Cloudflare did not create missing engagement');
+  await saveCommissionRule(env,owner.property_id,{...cloudBody,commission_percentage:14},'Test',cloudRule.id);
+  assert(db.prepare('SELECT COUNT(*) n FROM finance_labour_engagement').get().n===beforeCount+1,'Cloudflare edit duplicated engagement');
+  assert(db.prepare('SELECT commission_percentage n FROM finance_vendor_commission_rule WHERE vendor_commission_rule_id=?').get(cloudRule.id).n===14,'Cloudflare edit did not update commission');
+  let scopedLinkRejected=false;try{await saveCommissionRule(env,-1,cloudBody,'Test')}catch(e){scopedLinkRejected=e.status===400}
+  assert(scopedLinkRejected,'Cloudflare accepted another property vendor mapping');
+  const countBeforeFailure=db.prepare('SELECT COUNT(*) n FROM finance_labour_engagement').get().n;
+  let invalidDatesRejected=false;try{await saveCommissionRule(env,owner.property_id,{...cloudBody,effective_from:'2019-01-01',effective_to:'2018-01-01'},'Test')}catch{invalidDatesRejected=true}
+  assert(invalidDatesRejected&&db.prepare('SELECT COUNT(*) n FROM finance_labour_engagement').get().n===countBeforeFailure,'Cloudflare failed save left an orphan engagement');
   const disposableSeason=await call('/seasons',{method:'POST',body:JSON.stringify({crop_id:crop.crop_id,season_name:`Disposable season ${Date.now()}`,start_date:'2025-01-01',end_date:'2025-12-31',status:'planned'})});await call(`/seasons/${disposableSeason.id}`,{method:'PATCH',body:JSON.stringify({crop_id:crop.crop_id,season_name:'Disposable season updated',start_date:'2025-01-01',end_date:'2025-12-31',status:'planned'})});await call(`/seasons/${disposableSeason.id}`,{method:'DELETE'});assert(!db.prepare('SELECT 1 FROM finance_season WHERE season_id=?').get(disposableSeason.id),'Season hard delete failed');
   const archivedSeason=await call('/seasons',{method:'POST',body:JSON.stringify({crop_id:crop.crop_id,season_name:`Archived season ${Date.now()}`,start_date:'2024-01-01',end_date:'2024-12-31',status:'planned'})});await call(`/seasons/${archivedSeason.id}`,{method:'PATCH',body:JSON.stringify({action:'archive'})});const archivedSeasonRow=db.prepare('SELECT status FROM finance_season WHERE season_id=?').get(archivedSeason.id);assert(archivedSeasonRow?.status==='archived','Season archive did not retain the historical record');
   const tag=`Finance API ${Date.now()}`; const season=await call('/seasons',{method:'POST',body:JSON.stringify({crop_id:crop.crop_id,season_name:tag,start_date:'2026-01-01',end_date:'2026-12-31',status:'active'})});

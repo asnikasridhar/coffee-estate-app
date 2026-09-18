@@ -35,10 +35,42 @@ export async function financeOverview(env, propertyId, seasonId) {
   return {revenue,expenses,gain:Number((revenue-expenses).toFixed(2)),labour:labour||{},vendor:vendor||{},stock,expenseBreakdown,currentPrices:[]};
 }
 
+const vendorLaboursSql = `SELECT lv.*,l.name labor_name,v.vendorname FROM laborvendor lv
+  JOIN labors l ON l.labor_id=lv.labor_id JOIN vendor v ON v.vendor_id=lv.vendor_id
+  JOIN property p ON p.property_id=? AND p.user_id=v.user_id
+  WHERE EXISTS(SELECT 1 FROM propertylabor pl WHERE pl.property_id=p.property_id AND pl.labor_id=lv.labor_id)
+  ORDER BY l.name,v.vendorname`;
+
+export async function saveCommissionRule(env, propertyId, b, who, id=null) {
+  const percentage=amount(b.commission_percentage,'Commission');
+  if (percentage>100) throw Object.assign(new Error('Commission cannot exceed 100%'),{status:400});
+  if (id && !await first(env,'SELECT 1 FROM finance_vendor_commission_rule WHERE vendor_commission_rule_id=? AND property_id=?',id,propertyId))
+    throw Object.assign(new Error('Record not found'),{status:404});
+  const statements=[];
+  let engagementSql='?', engagementArgs=[b.labour_engagement_id];
+  if (b.labour_engagement_id) {
+    if (!await first(env,`SELECT 1 FROM finance_labour_engagement WHERE labour_engagement_id=? AND property_id=? AND labour_type='vendor'`,b.labour_engagement_id,propertyId))
+      throw Object.assign(new Error('Select a vendor labour assigned to this property'),{status:400});
+  } else {
+    const link=(await all(env,vendorLaboursSql,propertyId)).find(x=>String(x.laborvendor_id)===String(b.laborvendor_id));
+    if (!link) throw Object.assign(new Error('Select a vendor labour assigned to this property'),{status:400});
+    const match=`SELECT labour_engagement_id FROM finance_labour_engagement WHERE property_id=? AND labor_id=? AND vendor_id=? AND labour_type='vendor' AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC,labour_engagement_id DESC LIMIT 1`;
+    engagementSql=`(${match})`;
+    engagementArgs=[propertyId,link.labor_id,link.vendor_id,b.effective_from,b.effective_from];
+    statements.push(env.DB.prepare(`INSERT INTO finance_labour_engagement(property_id,labor_id,labour_type,vendor_id,effective_from,created_by) SELECT ?,?,'vendor',?,?,? WHERE NOT EXISTS(${match})`).bind(propertyId,link.labor_id,link.vendor_id,b.effective_from,who,...engagementArgs));
+  }
+  statements.push(id
+    ? env.DB.prepare(`UPDATE finance_vendor_commission_rule SET season_id=?,labour_engagement_id=${engagementSql},effective_from=?,effective_to=?,commission_percentage=?,status=?,modified_on=CURRENT_TIMESTAMP,modified_by=? WHERE vendor_commission_rule_id=? AND property_id=?`).bind(b.season_id||null,...engagementArgs,b.effective_from,b.effective_to||null,percentage,b.status||'active',who,id,propertyId)
+    : env.DB.prepare(`INSERT INTO finance_vendor_commission_rule(property_id,season_id,labour_engagement_id,effective_from,effective_to,commission_percentage,created_by) VALUES(?,?,${engagementSql},?,?,?,?)`).bind(propertyId,b.season_id||null,...engagementArgs,b.effective_from,b.effective_to||null,percentage,who));
+  const results=await env.DB.batch(statements);
+  return results[results.length-1];
+}
+
 export async function financeSetup(env, propertyId) {
   return {
     seasons:await all(env,`SELECT fs.*,cm.crop_name FROM finance_season fs JOIN crop_master cm ON cm.crop_id=fs.crop_id WHERE fs.property_id=? AND fs.status<>'archived' ORDER BY date(fs.start_date) DESC`,propertyId),
     cycles:await all(env,`SELECT * FROM finance_settlement_cycle WHERE property_id=? AND status<>'archived' ORDER BY cycle_name`,propertyId),
+    vendorLabours:await all(env,vendorLaboursSql,propertyId),
     engagements:await all(env,`SELECT e.*,l.name labor_name,v.vendorname FROM finance_labour_engagement e JOIN labors l ON l.labor_id=e.labor_id LEFT JOIN vendor v ON v.vendor_id=e.vendor_id WHERE e.property_id=? ORDER BY l.name`,propertyId),
     wageRules:await all(env,`SELECT wr.*,l.name labor_name,fs.season_name,bu.baseunit_name FROM finance_wage_rule wr JOIN labors l ON l.labor_id=wr.labor_id LEFT JOIN finance_season fs ON fs.season_id=wr.season_id LEFT JOIN baseunit bu ON bu.baseunit_id=wr.variable_unit_id WHERE wr.property_id=? AND wr.status<>'archived' ORDER BY date(wr.effective_from) DESC`,propertyId),
     commissionRules:await all(env,`SELECT cr.*,l.name labor_name,v.vendorname,fs.season_name FROM finance_vendor_commission_rule cr JOIN finance_labour_engagement e ON e.labour_engagement_id=cr.labour_engagement_id JOIN labors l ON l.labor_id=e.labor_id JOIN vendor v ON v.vendor_id=e.vendor_id LEFT JOIN finance_season fs ON fs.season_id=cr.season_id WHERE cr.property_id=? AND cr.status<>'archived' ORDER BY date(cr.effective_from) DESC`,propertyId),
@@ -65,7 +97,7 @@ export async function financeCreate(request,env,propertyId,resource){
   else if(resource==='cycles'){stmt=`INSERT INTO finance_settlement_cycle(property_id,cycle_name,frequency,custom_days,effective_from,effective_to,created_by) VALUES(?,?,?,?,?,?,?)`;values=[propertyId,b.cycle_name,b.frequency,b.custom_days||null,b.effective_from,b.effective_to||null,who];}
   else if(resource==='engagements'){stmt=`INSERT INTO finance_labour_engagement(property_id,labor_id,labour_type,vendor_id,effective_from,effective_to,created_by) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM propertylabor WHERE property_id=? AND labor_id=?)`;values=[propertyId,b.labor_id,b.labour_type,b.labour_type==='vendor'?b.vendor_id:null,b.effective_from,b.effective_to||null,who,propertyId,b.labor_id];}
   else if(resource==='wageRules'){stmt=`INSERT INTO finance_wage_rule(property_id,season_id,labor_id,settlement_cycle_id,effective_from,effective_to,fixed_rate,fixed_basis,variable_rate,variable_unit_id,overtime_rate,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`;values=[propertyId,b.season_id||null,b.labor_id,b.settlement_cycle_id||null,b.effective_from,b.effective_to||null,amount(b.fixed_rate||0,'Fixed rate'),b.fixed_basis||'day',amount(b.variable_rate||0,'Variable rate'),b.variable_unit_id||null,amount(b.overtime_rate||0,'Overtime rate'),who];}
-  else if(resource==='commissionRules'){stmt=`INSERT INTO finance_vendor_commission_rule(property_id,season_id,labour_engagement_id,effective_from,effective_to,commission_percentage,created_by) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM finance_labour_engagement WHERE labour_engagement_id=? AND property_id=? AND labour_type='vendor')`;values=[propertyId,b.season_id||null,b.labour_engagement_id,b.effective_from,b.effective_to||null,amount(b.commission_percentage,'Commission'),who,b.labour_engagement_id,propertyId];}
+  else if(resource==='commissionRules'){const result=await saveCommissionRule(env,propertyId,b,who);return json({id:Number(result.meta.last_row_id)},201);}
   else if(resource==='yieldTypes'){await crop(env,propertyId,b.crop_id);stmt=`INSERT INTO finance_yield_type(variety_master_id,yield_type_name,default_unit_id,created_by) VALUES(?,?,?,?)`;values=[b.variety_master_id,b.yield_type_name,b.default_unit_id,who];}
   else if(resource==='marketRates'){await crop(env,propertyId,b.crop_id);await yieldType(env,b.crop_id,b.variety_master_id,b.finance_yield_type_id);stmt=`INSERT INTO finance_market_rate(property_id,season_id,crop_id,variety_master_id,finance_yield_type_id,effective_date,rate,unit_id,source_name,notes,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)`;values=[propertyId,b.season_id||null,b.crop_id,b.variety_master_id,b.finance_yield_type_id,b.effective_date,amount(b.rate,'Rate'),b.unit_id,b.source_name||null,b.notes||null,who];}
   else if(resource==='buyerOffers'){await crop(env,propertyId,b.crop_id);await yieldType(env,b.crop_id,b.variety_master_id,b.finance_yield_type_id);stmt=`INSERT INTO finance_buyer_offer(property_id,season_id,crop_id,variety_master_id,finance_yield_type_id,buyer_id,market_rate_id,offered_rate,unit_id,offer_date,valid_until,notes,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`;values=[propertyId,b.season_id||null,b.crop_id,b.variety_master_id,b.finance_yield_type_id,b.buyer_id,b.market_rate_id||null,amount(b.offered_rate,'Offered rate'),b.unit_id,b.offer_date,b.valid_until||null,b.notes||null,who];}
