@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../theme/tokens";
 
 const names = {
+  refresh: "refresh-outline",
   home: "home-outline",
   estate: "business-outline",
   properties: "location-outline",

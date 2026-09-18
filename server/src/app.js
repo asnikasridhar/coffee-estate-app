@@ -12,6 +12,7 @@ import rainfallRoutes from './routes/rainfall.routes.js';
 import yieldRoutes from './routes/yield.routes.js';
 import crudRoutes from './routes/crud.routes.js';
 import financeRoutes from './routes/finance.routes.js';
+import payrollRoutes from './routes/payroll.routes.js';
 import { log, requestLogger } from './utils/logger.js';
 
 export function createApp() {
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api/rainfall', rainfallRoutes);
   app.use('/api/yield', yieldRoutes);
   app.use('/api/finance', financeRoutes);
+  app.use('/api/payroll', payrollRoutes);
   app.use('/api', crudRoutes);
 
   app.use((err, req, res, _next) => {

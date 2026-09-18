@@ -38,7 +38,7 @@ export async function financeOverview(env, propertyId, seasonId) {
 const vendorLaboursSql = `SELECT lv.*,l.name labor_name,v.vendorname FROM laborvendor lv
   JOIN labors l ON l.labor_id=lv.labor_id JOIN vendor v ON v.vendor_id=lv.vendor_id
   JOIN property p ON p.property_id=? AND p.user_id=v.user_id
-  WHERE EXISTS(SELECT 1 FROM propertylabor pl WHERE pl.property_id=p.property_id AND pl.labor_id=lv.labor_id)
+  WHERE l.user_id=p.user_id
   ORDER BY l.name,v.vendorname`;
 
 export async function saveCommissionRule(env, propertyId, b, who, id=null) {
@@ -95,7 +95,7 @@ export async function financeCreate(request,env,propertyId,resource){
   const b=await body(request),who=String(b.created_by||'Owner').slice(0,80); if(b.season_id)await season(env,propertyId,b.season_id); let stmt,values;
   if(resource==='seasons'){await crop(env,propertyId,b.crop_id);stmt=`INSERT INTO finance_season(property_id,crop_id,season_name,start_date,end_date,status,created_by) VALUES(?,?,?,?,?,?,?)`;values=[propertyId,b.crop_id,b.season_name,b.start_date,b.end_date,b.status||'planned',who];}
   else if(resource==='cycles'){stmt=`INSERT INTO finance_settlement_cycle(property_id,cycle_name,frequency,custom_days,effective_from,effective_to,created_by) VALUES(?,?,?,?,?,?,?)`;values=[propertyId,b.cycle_name,b.frequency,b.custom_days||null,b.effective_from,b.effective_to||null,who];}
-  else if(resource==='engagements'){stmt=`INSERT INTO finance_labour_engagement(property_id,labor_id,labour_type,vendor_id,effective_from,effective_to,created_by) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM propertylabor WHERE property_id=? AND labor_id=?)`;values=[propertyId,b.labor_id,b.labour_type,b.labour_type==='vendor'?b.vendor_id:null,b.effective_from,b.effective_to||null,who,propertyId,b.labor_id];}
+  else if(resource==='engagements'){stmt=`INSERT INTO finance_labour_engagement(property_id,labor_id,labour_type,vendor_id,effective_from,effective_to,created_by) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM labors l JOIN property p ON p.user_id=l.user_id WHERE p.property_id=? AND l.labor_id=?)`;values=[propertyId,b.labor_id,b.labour_type,b.labour_type==='vendor'?b.vendor_id:null,b.effective_from,b.effective_to||null,who,propertyId,b.labor_id];}
   else if(resource==='wageRules'){stmt=`INSERT INTO finance_wage_rule(property_id,season_id,labor_id,settlement_cycle_id,effective_from,effective_to,fixed_rate,fixed_basis,variable_rate,variable_unit_id,overtime_rate,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`;values=[propertyId,b.season_id||null,b.labor_id,b.settlement_cycle_id||null,b.effective_from,b.effective_to||null,amount(b.fixed_rate||0,'Fixed rate'),b.fixed_basis||'day',amount(b.variable_rate||0,'Variable rate'),b.variable_unit_id||null,amount(b.overtime_rate||0,'Overtime rate'),who];}
   else if(resource==='commissionRules'){const result=await saveCommissionRule(env,propertyId,b,who);return json({id:Number(result.meta.last_row_id)},201);}
   else if(resource==='yieldTypes'){await crop(env,propertyId,b.crop_id);stmt=`INSERT INTO finance_yield_type(variety_master_id,yield_type_name,default_unit_id,created_by) VALUES(?,?,?,?)`;values=[b.variety_master_id,b.yield_type_name,b.default_unit_id,who];}

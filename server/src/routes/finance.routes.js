@@ -37,7 +37,7 @@ function validateFinanceYield(cropId, varietyId, yieldTypeId) {
 const vendorLaboursSql = `SELECT lv.*,l.name labor_name,v.vendorname FROM laborvendor lv
   JOIN labors l ON l.labor_id=lv.labor_id JOIN vendor v ON v.vendor_id=lv.vendor_id
   JOIN property p ON p.property_id=? AND p.user_id=v.user_id
-  WHERE EXISTS(SELECT 1 FROM propertylabor pl WHERE pl.property_id=p.property_id AND pl.labor_id=lv.labor_id)
+  WHERE l.user_id=p.user_id
   ORDER BY l.name,v.vendorname`;
 const saveCommissionRule = db.transaction((b, propertyId, who, id = null) => {
   if (id && !owns('finance_vendor_commission_rule','vendor_commission_rule_id',id,propertyId))
@@ -113,7 +113,7 @@ router.post('/:resource', asyncHandler((req, res) => {
   switch (req.params.resource) {
     case 'seasons': validateCrop(propertyId, Number(b.crop_id)); result=db.prepare(`INSERT INTO finance_season(property_id,crop_id,season_name,start_date,end_date,status,created_by) VALUES(?,?,?,?,?,?,?)`).run(propertyId,b.crop_id,b.season_name,b.start_date,b.end_date,b.status||'planned',who); break;
     case 'cycles': result=db.prepare(`INSERT INTO finance_settlement_cycle(property_id,cycle_name,frequency,custom_days,effective_from,effective_to,created_by) VALUES(?,?,?,?,?,?,?)`).run(propertyId,b.cycle_name,b.frequency,b.custom_days||null,b.effective_from,b.effective_to||null,who); break;
-    case 'engagements': result=db.prepare(`INSERT INTO finance_labour_engagement(property_id,labor_id,labour_type,vendor_id,effective_from,effective_to,created_by) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM propertylabor WHERE property_id=? AND labor_id=?)`).run(propertyId,b.labor_id,b.labour_type,b.labour_type==='vendor'?b.vendor_id:null,b.effective_from,b.effective_to||null,who,propertyId,b.labor_id); if(!result.changes) throw new Error('Labour is not assigned to selected property'); break;
+    case 'engagements': result=db.prepare(`INSERT INTO finance_labour_engagement(property_id,labor_id,labour_type,vendor_id,effective_from,effective_to,created_by) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM labors l JOIN property p ON p.user_id=l.user_id WHERE p.property_id=? AND l.labor_id=?)`).run(propertyId,b.labor_id,b.labour_type,b.labour_type==='vendor'?b.vendor_id:null,b.effective_from,b.effective_to||null,who,propertyId,b.labor_id); if(!result.changes) throw new Error('Labour is not assigned to selected property'); break;
     case 'wageRules': result=db.prepare(`INSERT INTO finance_wage_rule(property_id,season_id,labor_id,settlement_cycle_id,effective_from,effective_to,fixed_rate,fixed_basis,variable_rate,variable_unit_id,overtime_rate,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(propertyId,b.season_id||null,b.labor_id,b.settlement_cycle_id||null,b.effective_from,b.effective_to||null,number(b.fixed_rate||0,'Fixed rate'),b.fixed_basis||'day',number(b.variable_rate||0,'Variable rate'),b.variable_unit_id||null,number(b.overtime_rate||0,'Overtime rate'),who); break;
     case 'commissionRules': result=saveCommissionRule(b,propertyId,who); break;
     case 'yieldTypes': { validateCrop(propertyId,Number(b.crop_id)); result=db.prepare(`INSERT INTO finance_yield_type(variety_master_id,yield_type_name,default_unit_id,created_by) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM variety_master vm JOIN crop_type_master ct ON ct.crop_type_id=vm.crop_type_id WHERE vm.variety_master_id=? AND ct.crop_id=?)`).run(b.variety_master_id,b.yield_type_name,b.default_unit_id,who,b.variety_master_id,b.crop_id); if(!result.changes) throw new Error('Variety does not belong to crop'); break; }

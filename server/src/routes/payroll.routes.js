@@ -1,0 +1,32 @@
+import { Router } from 'express';
+import { db } from '../db.js';
+import { requireScopedProperty } from '../middleware/context.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import { d1Adapter } from '../utils/d1Adapter.js';
+import { payrollSetup, payrollDaily, salaryPreview, payrollWrite } from '../../../functions/_shared/payroll.js';
+const router = Router(),
+  env = d1Adapter(db);
+router.get('/:action', asyncHandler(async (req, res) => {
+  const {
+    propertyId
+  } = requireScopedProperty(req);
+  if (!propertyId) return res.status(400).json({
+    error: 'Select a property first'
+  });
+  if (req.params.action === 'setup') return res.json(await payrollSetup(env, propertyId));
+  if (req.params.action === 'daily') return res.json(await payrollDaily(env, propertyId, req.query.date, req.query.season_id));
+  if (req.params.action === 'preview') return res.json(await salaryPreview(env, propertyId, req.query));
+  res.status(404).json({
+    error: 'Unknown payroll resource'
+  });
+}));
+router.post('/:action', asyncHandler(async (req, res) => {
+  const {
+    propertyId
+  } = requireScopedProperty(req);
+  if (!propertyId) return res.status(400).json({
+    error: 'Select a property first'
+  });
+  res.status(201).json(await payrollWrite(env, propertyId, req.params.action, req.body, String(req.body.created_by || 'Owner').slice(0, 80)));
+}));
+export default router;
