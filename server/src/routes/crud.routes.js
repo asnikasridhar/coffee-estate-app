@@ -35,6 +35,11 @@ function authorizedRecord(cfg, id, userId, propertyId) {
 }
 
 function normalizePayload(resource, payload) {
+  if(resource==='workAssignments'){
+    if(payload.work_quantity!=null){const q=Number(payload.work_quantity);if(!Number.isFinite(q)||q<0)throw Object.assign(new Error('Work quantity is invalid'),{status:400});payload.work_quantity=q;}
+    if(payload.work_unit!=null&&!['acre','tree','day','kg','bushel'].includes(payload.work_unit))throw Object.assign(new Error('Work unit is invalid'),{status:400});
+  }
+
   if (resource === 'blocks' && payload.parent_block_id === '') {
     return { ...payload, parent_block_id: null };
   }

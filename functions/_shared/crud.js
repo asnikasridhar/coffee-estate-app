@@ -16,7 +16,7 @@ export const resources = {
   varieties: { table: 'variety_master', id: 'variety_master_id', order: 'variety_name', propertyMode: 'viaCropType', allowed: ['variety_id','crop_type_id','variety_name','created_by','modified_by'] },
   plantInventory: { table: 'plant_inventory', id: 'plant_inventory_id', order: 'plant_inventory_id DESC', propertyMode: 'direct', allowed: ['property_id','block_id','sub_block_name','variety_master_id','plant_count','planting_date','spacing','area_covered','area_unit_id','productive_count','non_productive_count','dead_count','status','notes','created_by','modified_by'] },
   workActivities: { table: 'work_activity', id: 'work_activity_id', order: 'work_activity_name', propertyMode: 'direct', allowed: ['property_id','work_activity_name','work_activity_type','notes','created_by','modified_by'] },
-  workAssignments: { table: 'work_assignment', id: 'work_assignment_id', order: 'work_date DESC, work_assignment_id DESC', propertyMode: 'direct', allowed: ['property_id','work_activity_id','labor_id','work_date','block_id','notes','created_by','modified_by'] },
+  workAssignments: { table: 'work_assignment', id: 'work_assignment_id', order: 'work_date DESC, work_assignment_id DESC', propertyMode: 'direct', allowed: ['property_id','work_activity_id','labor_id','work_date','block_id','work_quantity','work_unit','notes','created_by','modified_by'] },
   yieldTypes: { table: 'yieldtype', id: 'yieldtype_id', order: 'yieldtype_name', propertyMode: 'viaPlant', allowed: ['yieldtype_name','plant_id','created_by','modified_by'] },
   yieldRates: { table: 'yieldrate', id: 'yieldrate_id', order: 'yieldrate_id DESC', propertyMode: 'viaPlant', allowed: ['plant_id','yieldtype_id','yieldrate_code','yieldrate_running_rate','baseunit_id','created_by','modified_by'] },
   assets: { table: 'currentasset', id: 'currentasset_id', order: 'asset_name', propertyMode: 'direct', allowed: ['asset_name','asset_price','procured_year','isactive','property_id','asset_procured_source','created_by','modified_by'] },
@@ -39,6 +39,11 @@ export const resources = {
 
 function pick(obj, allowed) { const o = {}; for (const k of allowed) if (Object.prototype.hasOwnProperty.call(obj, k)) o[k] = obj[k]; return o; }
 function normalizePayload(resource, payload) {
+  if(resource==='workAssignments'){
+    if(payload.work_quantity!=null){const q=Number(payload.work_quantity);if(!Number.isFinite(q)||q<0)throw Object.assign(new Error('Work quantity is invalid'),{status:400});payload.work_quantity=q;}
+    if(payload.work_unit!=null&&!['acre','tree','day','kg','bushel'].includes(payload.work_unit))throw Object.assign(new Error('Work unit is invalid'),{status:400});
+  }
+
   if (resource === 'blocks' && payload.parent_block_id === '') {
     return { ...payload, parent_block_id: null };
   }

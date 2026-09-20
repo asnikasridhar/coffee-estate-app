@@ -31,6 +31,8 @@ import * as XLSX from "xlsx";
 import FertilizerManagement from "./FertilizerManagement";
 import FinanceModule from "./FinanceModule";
 import AppIcon from "./src/components/AppIcon";
+import EnvironmentWatermark from "./src/components/EnvironmentWatermark";
+import { APP_ENVIRONMENT } from "./src/config/environment";
 import { colors as themeColors } from "./src/theme/tokens";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -43,10 +45,11 @@ const WEATHER_API_KEY = process.env.EXPO_PUBLIC_WEATHER_API_KEY || "";
 // Set this Expo public variable to "true" when the feature is ready to return.
 const WEATHER_FEATURE_ENABLED =
   process.env.EXPO_PUBLIC_ENABLE_WEATHER === "true";
-const PRODUCTION_API_BASE = "https://coffee-estate-app.pages.dev/api";
 const FAVORITES_KEY = "estate-app-favorite-modules";
 const LANGUAGE_KEY = "javaterrain-language";
-const LOGIN_MEMORY_KEY = "javaterrain-remembered-login";
+const LOGIN_MEMORY_KEY = APP_ENVIRONMENT.environment === "prod"
+  ? "javaterrain-remembered-login"
+  : `javaterrain-remembered-login-${APP_ENVIRONMENT.environment}`;
 const LANGUAGES = [
   ["en", "English"],
   ["kn", "ಕನ್ನಡ"],
@@ -1735,8 +1738,7 @@ function friendlyError(error) {
 }
 
 export default function App() {
-  const defaultApiBase = process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_BASE;
-  const apiBase = defaultApiBase;
+  const apiBase = APP_ENVIRONMENT.apiBase;
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState("");
   const [propertyId, setPropertyId] = useState("");
@@ -1930,6 +1932,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <EnvironmentWatermark/>
       <StatusBar
         barStyle="dark-content"
         backgroundColor="#f5eee3"
@@ -2071,6 +2074,7 @@ function Login({ onLogin, loading, error, t, language, setLanguage }) {
   }
   return (
     <SafeAreaView style={styles.loginPage}>
+      <EnvironmentWatermark/>
       <StatusBar
         barStyle="dark-content"
         backgroundColor="#f3efe4"
@@ -6515,6 +6519,8 @@ function WorkAssignmentScreen({
   const [activityId, setActivityId] = useState("");
   const [blockId, setBlockId] = useState("");
   const [notes, setNotes] = useState("");
+  const [workQuantity,setWorkQuantity]=useState("");
+  const [workUnit,setWorkUnit]=useState("acre");
   const [drafts, setDrafts] = useState([]);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [pendingEdit, setPendingEdit] = useState(null);
@@ -6584,6 +6590,7 @@ function WorkAssignmentScreen({
       setActivityId(String(pendingEdit.work_activity_id));
       setBlockId(pendingEdit.block_id ? String(pendingEdit.block_id) : "");
       setNotes(pendingEdit.notes || "");
+      setWorkQuantity(String(pendingEdit.work_quantity??""));setWorkUnit(pendingEdit.work_unit||"acre");
       setEditingAssignment(pendingEdit);
       setPendingEdit(null);
     } else {
@@ -6596,6 +6603,7 @@ function WorkAssignmentScreen({
     setActivityId("");
     setBlockId("");
     setNotes("");
+    setWorkQuantity("");setWorkUnit("acre");
     setEditingAssignment(null);
   }
   function openLabor(labor) {
@@ -6633,6 +6641,8 @@ function WorkAssignmentScreen({
           work_activity_id: Number(activityId),
           labor_id: Number(laborId),
           block_id: blockId ? Number(blockId) : null,
+          work_quantity:workQuantity===""?null:Number(workQuantity),
+          work_unit:workQuantity===""?null:workUnit,
           notes,
         });
     });
@@ -6646,6 +6656,7 @@ function WorkAssignmentScreen({
     setActivityId("");
     setBlockId("");
     setNotes("");
+    setWorkQuantity("");setWorkUnit("acre");
   }
   async function addOrUpdate() {
     if (!activityId)
@@ -6666,6 +6677,8 @@ function WorkAssignmentScreen({
               work_activity_id: Number(activityId),
               labor_id: Number(selectedLabor.labor_id),
               block_id: blockId ? Number(blockId) : null,
+              work_quantity: workQuantity === "" ? null : Number(workQuantity),
+              work_unit: workQuantity === "" ? null : workUnit,
               notes,
               modified_by: user.username,
             }),
@@ -6700,6 +6713,8 @@ function WorkAssignmentScreen({
         work_activity_id: Number(activityId),
         labor_id: Number(selectedLabor.labor_id),
         block_id: blockId ? Number(blockId) : null,
+        work_quantity:workQuantity===""?null:Number(workQuantity),
+        work_unit:workQuantity===""?null:workUnit,
         notes,
       },
     ]);
@@ -6749,6 +6764,7 @@ function WorkAssignmentScreen({
     setActivityId(String(row.work_activity_id));
     setBlockId(row.block_id ? String(row.block_id) : "");
     setNotes(row.notes || "");
+    setWorkQuantity(String(row.work_quantity??""));setWorkUnit(row.work_unit||"acre");
     setEditingAssignment(row);
   }
   function removeAssignment(row) {
@@ -6946,6 +6962,8 @@ function WorkAssignmentScreen({
             data={modalData}
             t={t}
           />
+          <FieldText label="Completed work quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="For salary work charges"/>
+          <View style={styles.quickActivities}>{['acre','tree','day','kg','bushel'].map(unit=><TouchableOpacity key={unit} onPress={()=>setWorkUnit(unit)} style={[styles.quickActivity,workUnit===unit&&styles.quickActivityActive]}><Text>{unit}</Text></TouchableOpacity>)}</View>
           <FieldText
             label={`${copy.notes} (${t("optional")})`}
             value={notes}
@@ -7207,7 +7225,9 @@ function WorkAssignmentScreen({
                 data={modalData}
                 t={t}
               />
-              <FieldText
+              <FieldText label="Completed work quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="For salary work charges"/>
+          <View style={styles.quickActivities}>{['acre','tree','day','kg','bushel'].map(unit=><TouchableOpacity key={unit} onPress={()=>setWorkUnit(unit)} style={[styles.quickActivity,workUnit===unit&&styles.quickActivityActive]}><Text>{unit}</Text></TouchableOpacity>)}</View>
+          <FieldText
                 label={`${copy.notes} (${t("optional")})`}
                 value={notes}
                 onChangeText={setNotes}
@@ -7278,6 +7298,7 @@ function WorkAssignmentScreen({
                         setActivityId(String(row.work_activity_id));
                         setBlockId(row.block_id ? String(row.block_id) : "");
                         setNotes(row.notes || "");
+    setWorkQuantity(String(row.work_quantity??""));setWorkUnit(row.work_unit||"acre");
                         setEditingAssignment(row);
                       }}
                     >

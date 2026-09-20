@@ -9,7 +9,13 @@
     "start": "expo start",
     "android": "expo run:android",
     "web": "expo start --web",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "start:dev": "node scripts/expo-environment.cjs dev start --clear",
+    "start:stg": "node scripts/expo-environment.cjs stg start --clear",
+    "start:prod": "node scripts/expo-environment.cjs prod start --clear",
+    "android:dev": "node scripts/expo-environment.cjs dev run:android",
+    "android:stg": "node scripts/expo-environment.cjs stg run:android",
+    "android:prod": "node scripts/expo-environment.cjs prod run:android"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -36,8 +42,15 @@
   },
   "jest": {
     "preset": "jest-expo",
-    "setupFilesAfterEnv": ["<rootDir>/jest.setup.js"],
-    "collectCoverageFrom": ["FinanceModule.js"],
-    "testPathIgnorePatterns": ["/node_modules/", "/android/"]
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "collectCoverageFrom": [
+      "FinanceModule.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/android/"
+    ]
   }
 }

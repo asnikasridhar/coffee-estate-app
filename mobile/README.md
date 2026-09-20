@@ -1,21 +1,50 @@
 # Coffee Estate Mobile App - Expo SDK 54
 
-This mobile app talks to the existing Express backend in `../server`.
+The mobile app defaults to DEV. Select the environment explicitly when starting Expo or building an Android app; changing Git branches alone does not change an already built app.
 
-The app uses the production Cloudflare Pages API by default:
+| Environment | Branch | API base | Login and signed-in label |
+| --- | --- | --- | --- |
+| DEV | develop-mobile | https://coffee-estate-app-dev.pages.dev/api | DEV |
+| STG | stage-mobile | https://coffee-estate-app-stg.pages.dev/api | STG |
+| Production | main | https://coffee-estate-app.pages.dev/api | None |
 
-```text
-https://coffee-estate-app.pages.dev/api
-```
-
-For local development, override it before starting Expo:
+From the repository root, start Expo Go with one of:
 
 ```powershell
-$env:EXPO_PUBLIC_API_URL='http://YOUR-LAPTOP-IP:8787/api'
-npm start
+npm run start:dev --prefix mobile
+npm run start:stg --prefix mobile
+npm run start:prod --prefix mobile
 ```
 
-The login screen does not ask users to configure a backend URL.
+Stop the previous Metro server before switching. Each command clears Metro's cache and sets both environment variables for that process, overriding stale shell URL settings. DEV/STG remembered login credentials are stored separately from production.
+
+For native Android builds/runs:
+
+```powershell
+npm run android:dev --prefix mobile
+npm run android:stg --prefix mobile
+npm run android:prod --prefix mobile
+```
+
+Equivalent direct Expo commands (run from `mobile`):
+
+```powershell
+$env:EXPO_PUBLIC_APP_ENV='dev'
+$env:EXPO_PUBLIC_API_URL='https://coffee-estate-app-dev.pages.dev/api'
+npx expo start --clear
+```
+
+Use `stg` with `https://coffee-estate-app-stg.pages.dev/api`, or `prod` with `https://coffee-estate-app.pages.dev/api`. Environment values are bundled into the app; installed apps need a rebuild/update to switch.
+
+For a local Express backend:
+
+```powershell
+$env:EXPO_PUBLIC_APP_ENV='dev'
+$env:EXPO_PUBLIC_API_URL='http://YOUR-LAPTOP-IP:8787/api'
+npx expo start --clear
+```
+
+The login screen does not ask users to configure a backend URL. Local/custom API overrides display DEV. Known hosted URLs determine their own label, so the watermark always matches the target API.
 
 Live dashboard weather is currently hidden because the external API integration
 is unavailable. The implementation remains in place for a later release. To

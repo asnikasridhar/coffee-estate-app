@@ -6,7 +6,7 @@ Open Finance > Labour Salary. Daily entry, Settlement, History and Salary rates 
 
 - Full-day fixed salary is multiplied by attendance (1, 0.5 or 0).
 - Daily extra harvest = max(0, worker harvest - included daily quantity * attendance).
-- Extra harvest is multiplied by the per-unit rate. The saved unit must match the rate; kg and bushels are not implicitly converted.
+- New salary profiles pay the bonus amount for each completed group of extra harvest; the group size is configurable for each estate/labour profile. Legacy proportional rates retain their calculation until edited. The saved unit must match the rate; kg and bushels are not implicitly converted.
 - OT pay = recorded extra hours * hourly OT rate.
 - Rates are effective-dated. Each day uses its effective rate; salary rates here are per day.
 - Recorded unpaid advance balances up to the cycle end date are recovered oldest first. Recovery never exceeds earnings; the remaining balance carries forward.
@@ -42,3 +42,43 @@ npm test --prefix mobile -- --watch=false
 ```
 
 Regression tests exercise shared production payroll logic through the local SQLite/D1 adapter and both API routes. Examples: daily fixed 500, 5 units included, 50/extra unit, 100/OT hour => full day + 7 units + 2 OT hours = 800; half day + 3.5 units + 1 OT hour = 400. Combined gross 1200 with advance 1500 means payment 0 and advance 300 carried forward.
+
+
+## Simple Flow update (0024)
+
+The salary UI follows the supplied reference: white cards and green tab markers; Salary Rates by labour; Daily Entry with No Extra, OT, Harvesting and Other/Custom; auto-calculated saved-day cards; Pay Advance with reasons/recent payments; settlement summary with payment date/mode/amount; and history filtered by labour.
+
+Mapping:
+
+- Attendance supplies full/half/absent status.
+- Work Assignment supplies work type and the completed quantity/unit **per labour**. For per-acre, per-tree, kg or bushel rates, fill that quantity in Work Assignment. Missing/mismatched units stop settlement and explain what to correct. Per-day work charges follow attendance and count each work type once per day.
+- Salary Rates stores regular wages, optional work-type rates, OT and optional seasonal profiles. Seasonal rates take priority for the selected season within their effective dates. Half-day fixed salary remains half the full-day rate.
+- Harvest bonus groups are configurable per labour/property profile: e.g. 600 per 3 bushels in one estate or per 4 in another. New profiles use **completed groups only**. Included harvest allowance is deducted first and is halved on half days; group size itself is not halved. Uncompleted groups do not earn a bonus and do not carry to another day. Existing proportional rates retain their previous behaviour until edited.
+- No Extra records zero extras, while still including attendance wages and assigned work charges. OT, harvest and custom extras can also be combined.
+- Advance reason and payment date are persisted. Mark as Paid requires the amount to match net payable; the screen does not silently mark a partial payment as fully paid.
+
+Apply migration 0024 **once**, after 0023, before deploying the updated API/mobile app. It adds work quantity fields and salary option tables. Local SQLite has a backup made before application.
+
+DEV (repository root):
+
+```powershell
+npx wrangler d1 execute dev-coffee-estate-db --config wrangler-dev.toml --remote --file migrations/d1/0024_salary_simple_flow.sql
+```
+
+STG:
+
+```powershell
+npx wrangler d1 execute stg-coffee-estate-db --config wrangler-stg.toml --remote --file migrations/d1/0024_salary_simple_flow.sql
+```
+
+Production:
+
+```powershell
+npx wrangler d1 execute coffee-estate-db --config wrangler.toml --remote --file migrations/d1/0024_salary_simple_flow.sql
+```
+
+For a local database that has not received 0024, from `server`:
+
+```powershell
+node src/run-migration.js ../migrations/0024_salary_simple_flow.sql
+```
