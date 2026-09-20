@@ -1,0 +1,9 @@
+name = "coffee-estate-app-stg"
+compatibility_date = "2026-06-08"
+pages_build_output_dir = "client/dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "stg-coffee-estate-db"
+database_id = "dcfc3364-30d5-4781-a0e7-cf68c2712d4b"
+migrations_dir = "migrations/d1"
