@@ -16,6 +16,19 @@ Open Finance > Labour Salary. Daily entry, Settlement, History and Salary rates 
 
 Worker harvest/OT are entered in Daily entry; estate harvest totals have no worker attribution and cannot automatically be used as salary input. Existing hidden legacy wage-settlement advances are not imported automatically: reconcile any remaining balance before recording it in the new advance ledger.
 
+## Remote migration tracking
+
+Use Wrangler migrations for normal remote releases so successful applications are recorded in `d1_migrations`:
+
+```powershell
+npx wrangler d1 migrations list dev-coffee-estate-db --config wrangler-dev.toml --remote
+npx wrangler d1 migrations apply dev-coffee-estate-db --config wrangler-dev.toml --remote
+```
+
+`d1 execute --file` runs SQL but does not update the migration ledger. The individual-file commands below are manual application examples only. Before switching an existing database to `migrations apply`, reconcile any manually applied migrations against its actual schema; do not rerun migrations with existing `ALTER TABLE ADD COLUMN` changes.
+
+On 2026-09-20, DEV migrations 0022, 0023 and 0024 were verified against all 53 schema objects/columns and required expense codes, then their missing ledger records were added. Their `applied_at` values record reconciliation time, not the original schema application time. Wrangler confirmed no pending DEV migrations. STG and production were not reconciled in this operation.
+
 ## Release prerequisite
 
 Apply the additive, idempotent migration before using the new salary endpoints. It does not change existing wage rules or salary records.
