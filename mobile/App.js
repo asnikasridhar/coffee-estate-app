@@ -1,3 +1,4 @@
+import { salaryReportHtml } from './salaryReportHtml';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -2933,10 +2934,7 @@ function SalaryOperationsEntry({propertyId,request}) {
   return history?<SalaryReports propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField} exportPdf={exportSalaryPdf} onBack={()=>setHistory(false)}/>:<SalarySettlement propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField} onHistory={()=>setHistory(true)} exportPdf={exportSalaryPdf}/>;
 }
 async function exportSalaryPdf(report,tables=salaryReportTables(report)) {
-  const paid=report.rows.filter(r=>['paid','partially paid'].includes(r.status)),unpaid=report.rows.filter(r=>r.status==='unpaid');
-  const sum=(rows,key)=>rows.reduce((n,r)=>n+Number(r[key]||0),0).toFixed(2);
-  const table=(title,rows)=>{const columns=Object.keys(rows[0]||{});return `<h2>${htmlEscape(title)}</h2><table><thead><tr>${columns.map(c=>`<th>${htmlEscape(c)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${columns.map(c=>`<td>${htmlEscape(r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;};
-  const html=`<html><head><meta charset="utf-8"/><style>body{font-family:Arial;padding:20px;color:#3f2616}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #d9c4aa;padding:5px}h2{font-size:16px}</style></head><body><h1>${htmlEscape(report.property)} - Labour Salary</h1><p>${report.from} to ${report.to}</p><p>${htmlEscape(report.note)}</p><p>Final labour cost: Rs ${sum(paid,'total_earned')} | Net payments: Rs ${sum(paid,'settled_paid')} | Advances paid: Rs ${sum(report.advances,'amount')} | Advance deductions: Rs ${sum(paid,'advance_paid')} | Unpaid (provisional): Rs ${sum(unpaid,'settled_paid')} | Pending calculations: ${report.rows.filter(r=>r.status==='pending').length}</p>${Object.entries(tables).map(([title,rows])=>table(title,rows)).join('')}${table('Salary / Attendance',report.rows.map(r=>({labour:r.labor_name,date:r.work_date,status:r.status,days:r.attendance??r.attendance_days??'',earned:r.total_earned??'',advance:r.advance_paid??'',net:r.settled_paid??'',OT:r.overtime_earned??'',bonus:r.variable_earned??''})))}</body></html>`;
+  const html=salaryReportHtml(report,tables);
   const result=await Print.printToFileAsync({html});await Sharing.shareAsync(result.uri,{mimeType:'application/pdf',dialogTitle:'Labour salary report'});
 }
 

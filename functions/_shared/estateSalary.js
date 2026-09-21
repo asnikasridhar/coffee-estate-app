@@ -158,7 +158,6 @@ export function calculateEstateDay({
     ot = pick(versions, 'overtime', day);
   const season = pick(versions, 'seasonal', day);
   const wageKey = fraction === 0.5 ? 'half_day' : 'full_day';
-  const seasonalWage = input.use_regular ? null : season?.payload[wageKey];
   const dailyResolved = resolveRate({
     versions,
     exceptions,
@@ -263,7 +262,7 @@ export function calculateEstateDay({
       overtime: ot || null,
       labour_exceptions: exceptions.filter(e => Number(e.property_id) === Number(propertyId) && Number(e.labor_id) === Number(laborId) && active(e, day))
     },
-    messages: season ? [`${season.payload.name} rates are active for this date.`, ...(dailyResolved.source === 'Seasonal Rate' ? [`Seasonal daily wage ${money(wage)} is being used instead of regular ${daily?.payload[wageKey] ?? 'unconfigured'}.`] : [])] : [],
+    messages: season ? [`${season.payload.name} rates are active for this date.`, ...(dailyResolved.source === 'Custom Labour Rate' ? [`Custom labour wage ${money(wage)} takes priority over the seasonal daily wage. The seasonal harvest bonus still applies.`] : []), ...(input.use_regular ? ['Regular wage explicitly selected for this day; seasonal harvest bonuses still apply.'] : []), ...(dailyResolved.source === 'Seasonal Rate' ? [`Seasonal daily wage ${money(wage)} is being used instead of regular ${daily?.payload[wageKey] ?? 'unconfigured'}.`] : [])] : [],
     original_components: {},
     overrides
   };
@@ -623,6 +622,11 @@ export async function estateWrite(env, p, action, b, who) {
     const harvest = quantity(b.quantity ?? 0, 'Harvest quantity'),
       custom = amount(b.custom_amount ?? 0, 'Custom extra');
     if (harvest && !(await first(env, 'SELECT 1 FROM baseunit WHERE baseunit_id=?', Number(b.unit_id)))) fail('Select harvest unit');
+    const seasonRow = await first(env, "SELECT * FROM estate_rate_version WHERE property_id=? AND category='seasonal' AND effective_from<=? AND effective_to>=? ORDER BY effective_from DESC,rate_version_id DESC LIMIT 1", p, day, day);
+    const season = seasonRow ? decode(seasonRow) : null;
+    if (harvest && season?.payload.bonus_amount && String(b.unit_id) !== String(season.payload.unit_id)) {
+      fail(`Select ${season.payload.unit_name} as the harvest unit for ${season.payload.name}`);
+    }
     const extras = [];
     const seen = new Set();
     if (!Array.isArray(b.extras || []) || (b.extras || []).length > 50) fail('Invalid extra entries');

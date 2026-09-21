@@ -1,5 +1,72 @@
 # Finance Regression Test Plan
 
+## Salary attachment regression — 21 September 2026
+
+Run the numbered attachment scenarios with:
+
+```powershell
+npm run test:salary-scenarios --prefix server
+npm test --prefix mobile -- --watch=false
+```
+
+`server/scripts/test-salary-scenarios.mjs` exercises the production salary service
+through the SQLite/D1 adapter, with real rate, attendance, assignment, input,
+advance, override and payment records in an isolated database copy. A test-only
+clock permits the attachment's October payment dates. No remote estate data is
+modified. All 25 scenarios pass.
+
+| Attachment test | Verified result |
+|---|---|
+| 1 | Estate daily 100 + fertilization 50 = 150; estimate shows Estate Rate; payment saved |
+| 2 | Custom daily 70 + estate weeding 20 = 90 |
+| 3 | Custom daily 70 + custom fertilization 2 × 40 = 150 |
+| 4 | Custom daily 70 + estate pruning 10 × 15 = 220 |
+| 5 | Custom half-day wage = 35 |
+| 6 | Estate daily 100 + 2 hours × 100 = 300 |
+| 7 | Estate daily 100 + custom OT 2 × 150 = 400 |
+| 8 | Seasonal 150 + harvesting 60 + bonus 50 = 260 for 5 bushels |
+| 9 | Seasonal 150 + harvesting 60 = 210 for 2 bushels |
+| 10 | Exactly 3 bushels qualifies: 260 |
+| 11 | 7 bushels earns one flat bonus: 260 |
+| 12 | Explicit regular selection persists: October daily 120 |
+| 13 | Gross 150 / advance 40 / payable 110; gross is preserved |
+| 14 | Work override 50 → 70 with reason produces 190; master remains 50 |
+| 15 | Only selected workers paid: 170 + 140; third worker remains unpaid at 260 |
+| 16 | September paid report remains 100 + 50 = 150 after future rate changes |
+| 17 | Expired daily exception falls back to October seasonal wage 150 |
+| 18 | Future daily exception is ignored in October and applies on 1 November at 90 |
+| 19 | Work exception start/end dates inclusive; estate fallback immediately outside |
+| 20 | Overlapping work exception rejected |
+| 21 | Missing Pepper Tying rate marks calculation pending and blocks payment |
+| 22 | Two assignments appear separately: 100 + 50 + 40 = 190 |
+| 23 | Half-day 50 + work 50 + OT 100 = 200 |
+| 24 | Confirmed custom daily wage 70 wins over seasonal 150; seasonal bonus 50 still applies |
+| 25 | Combined work/OT/advance/override freezes 350 earned / 50 advance / 300 paid; report and PDF HTML preserve these values after future rates change |
+
+Fixture clarifications: scenarios 17–19 use a separate labour because their
+September-only exception conflicts with the September–December exception in
+scenario 2. Scenario 25 uses a labour with a work exception and no daily
+exception, matching its stated seasonal-wage assumption. Scenario 24 follows
+the user's confirmed custom-wage precedence rather than the attachment's
+alternative recommendation.
+
+Additional regressions verify that mismatched harvest units are rejected before
+overwriting valid saved actuals; the active season's unit is preselected; blank
+optional amounts become zero; recalculation refreshes the breakdown and saved
+form; errors/pending calculations are visible next to Save; and unsaved actuals
+must be recalculated before payment. Shared dropdown tests cover keyboard
+dismissal, no automatic search focus, search retained during parent rerenders,
+single selection, and closing/reopening.
+
+Validation: all server suites pass; all 28 mobile component tests pass;
+Cloudflare Functions compile; DEV Android export succeeds. The PDF assertion
+checks the actual HTML passed to Expo Print, not a rendered PDF screenshot.
+Native dropdown animation and keyboard layout still require an on-device visual
+check; no Android device/emulator was available in this environment.
+
+Release: deploy the API changes and reload/rebuild the mobile app. These fixes
+require no new migration beyond 0025 and 0026.
+
 ## Automated Tests
 
 Run from the repository root:

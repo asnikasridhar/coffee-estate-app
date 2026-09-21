@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Keyboard, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import AppIcon from './src/components/AppIcon';
 import InfoTip from './src/components/InfoTip';
 import { rateHelp } from './src/config/sectionHelp';
@@ -400,6 +400,7 @@ export function SalarySettlement({
     [advance, setAdvance] = useState(null),
     [query, setQuery] = useState(''),
     [error, setError] = useState(''),
+    [saved, setSaved] = useState(false),
     [busy, setBusy] = useState(false),
     [method, setMethod] = useState('cash'),
     [paymentDate, setPaymentDate] = useState(today());
@@ -415,6 +416,11 @@ export function SalarySettlement({
         setData(next);
         setSelected([]);
         setDetail(d => d ? next.rows.find(r => r.labor_id === d.labor_id) || null : null);
+        if (detail) {
+          const updated = next.rows.find(r => r.labor_id === detail.labor_id);
+          if (updated) setForm(actuals(updated, next.setup));
+        }
+        return next;
       }
     } catch (e) {
       if (stamp === sequence.current) setError(e.message);
@@ -440,14 +446,20 @@ export function SalarySettlement({
       sequence.current++;
     };
   }, [propertyId, day]);
-  function open(row) {
-    setDetail(row);
-    setForm({
+  function actuals(row, setup = data.setup) {
+    const season = setup.versions?.find(v => v.category === 'seasonal' && v.effective_from <= day && v.effective_to >= day);
+    return {
       ...row.input,
       quantity: row.input?.quantity ?? 0,
+      unit_id: row.input?.unit_id || season?.payload.unit_id || '',
       custom_amount: row.input?.custom_amount ?? 0,
       extras: row.input?.extras || []
-    });
+    };
+  }
+  function open(row) {
+    setDetail(row);
+    setForm(actuals(row));
+    setSaved(false);
     setOverride(null);
     setAdvance(null);
     setError('');
@@ -455,6 +467,8 @@ export function SalarySettlement({
   async function write(action, body) {
     if (saving.current) return;
     saving.current = true;
+    Keyboard.dismiss();
+    setSaved(false);
     setBusy(true);
     setError('');
     try {
@@ -468,7 +482,8 @@ export function SalarySettlement({
       });
       setOverride(null);
       setAdvance(null);
-      await load();
+      const refreshed = await load();
+      setSaved(Boolean(refreshed));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -476,6 +491,7 @@ export function SalarySettlement({
       setBusy(false);
     }
   }
+  const dirty = detail && JSON.stringify(form) !== JSON.stringify(actuals(detail));
   const payableRows = data.rows.filter(r => selected.includes(r.labor_id) && r.status === 'unpaid');
   function pay(rows) {
     if (!rows.length) return;
@@ -505,7 +521,7 @@ export function SalarySettlement({
       setDetail(null);
       setError('');
     } : null} />
-    {!detail ? <><DateField label="Settlement Date" value={day} onChange={setDay} /><View style={s.card}><Pair label="Labourers" value={data.rows.length} /><Pair label="Calculated / Pending / Paid" value={`${data.rows.filter(r => r.status === 'unpaid').length} / ${data.rows.filter(r => r.status === 'pending').length} / ${data.rows.filter(r => r.status === 'paid').length}`} /><Pair label="Unpaid net payable" value={cash(data.rows.filter(r => r.status === 'unpaid').reduce((n, r) => n + r.settled_paid, 0))} /></View>{data.alerts.map((a, i) => <Notice key={i}>{a}</Notice>)}<Field label="Search labour" numeric={false} value={query} onChange={setQuery} /></> : null}
+    {!detail ? <><DateField label="Settlement Date" value={day} onChange={setDay} /><View style={s.card}><Pair label="Labourers" value={data.rows.length} /><Pair label="Calculated / Pending / Paid" value={`${data.rows.filter(r => r.status === 'unpaid').length} / ${data.rows.filter(r => r.status === 'pending').length} / ${data.rows.filter(r => r.status === 'paid').length}`} /><Pair label="Paid net amount" value={cash(data.rows.filter(r => r.status === 'paid').reduce((n, r) => n + Number(r.settled_paid || 0), 0))} /><Pair label="Unpaid net payable" value={cash(data.rows.filter(r => r.status === 'unpaid').reduce((n, r) => n + r.settled_paid, 0))} /></View>{data.alerts.map((a, i) => <Notice key={i}>{a}</Notice>)}<Field label="Search labour" numeric={false} value={query} onChange={setQuery} /></> : null}
     {error ? <Notice error>{error}</Notice> : null}{busy ? <Text style={s.muted}>Loading...</Text> : null}
     {!detail ? <>{!data.rows.length && !busy ? <Notice>No attended labourers for this date. Record attendance first.</Notice> : null}{data.rows.filter(r => r.labor_name.toLowerCase().includes(query.toLowerCase())).map(r => <View style={s.card} key={r.labor_id}><View style={s.row}>{r.status === 'unpaid' ? <TouchableOpacity accessibilityRole="checkbox" accessibilityLabel={`Select ${r.labor_name}`} accessibilityState={{
             checked: selected.includes(r.labor_id)
@@ -547,7 +563,7 @@ export function SalarySettlement({
           ...override,
           preview_key: detail.preview_key
         })} /><Button title="Cancel override" secondary onPress={() => setOverride(null)} /></View> : null}
-    {detail.status === 'unpaid' || detail.status === 'pending' ? <View style={s.card}><Text style={s.section}>Actual quantity / OT / Extras</Text><Field label="Harvest quantity" value={form.quantity} onChange={field('quantity')} /><Choice label="Harvest unit" optional options={options(units, 'baseunit_id', 'baseunit_name')} value={form.unit_id} onChange={field('unit_id')} />
+    {detail.status === 'unpaid' || detail.status === 'pending' ? <View style={s.card}><Text style={s.section}>Actual quantity / OT / Extras</Text>{data.setup.versions?.filter(v => v.category === 'seasonal' && v.effective_from <= day && v.effective_to >= day).map(v => <Notice key={v.rate_version_id}>{v.payload.name}: at least {v.payload.minimum_quantity} {v.payload.unit_name} earns one bonus of {cash(v.payload.bonus_amount)}. Enter the actual harvest below.</Notice>)}<Field label="Harvest quantity" value={form.quantity} onChange={field('quantity')} /><Choice label="Harvest unit" optional options={options(units, 'baseunit_id', 'baseunit_name')} value={form.unit_id} onChange={field('unit_id')} />
       {(form.extras || []).map((e, i) => <View style={s.inset} key={i}><Choice label="OT / Extra type" options={options(types, 'overtime_type_id', 'name')} value={e.overtime_type_id} onChange={v => setForm(f => ({
             ...f,
             extras: f.extras.map((x, n) => n === i ? {
@@ -572,11 +588,11 @@ export function SalarySettlement({
           }]
         }))} /><Field label="Other / Custom amount" value={form.custom_amount} onChange={field('custom_amount')} /><Choice label="Daily wage source" value={form.use_regular ? 'regular' : 'automatic'} onChange={v => field('use_regular')(v === 'regular')} options={[{
           id: 'automatic',
-          name: 'Seasonal when active'
+          name: 'Automatic (custom wage first, then seasonal)'
         }, {
           id: 'regular',
           name: 'Use regular wage (including labour exception)'
-        }]} /><Field label="Notes" numeric={false} value={form.notes} onChange={field('notes')} /><Button title="Save actuals and recalculate" disabled={busy} onPress={() => write('settlement-input', form)} /><Button title="+ Add Advance" secondary onPress={() => setAdvance({
+        }]} /><Field label="Notes" numeric={false} value={form.notes} onChange={field('notes')} /><Button title="Save actuals and recalculate" disabled={busy} onPress={() => write('settlement-input', {...form, quantity: form.quantity === '' ? 0 : form.quantity, custom_amount: form.custom_amount === '' ? 0 : form.custom_amount})} />{error ? <Notice error>{error}</Notice> : saved && !dirty ? <Notice>{detail.status === 'pending' ? `Actuals saved. Calculation needs attention: ${detail.error}` : 'Saved and recalculated. The breakdown above shows the updated amounts.'}</Notice> : null}<Button title="+ Add Advance" secondary onPress={() => setAdvance({
           paid_date: day,
           amount: '',
           reason: '',
@@ -595,7 +611,7 @@ export function SalarySettlement({
       <DateField label="Payment Date" value={paymentDate} onChange={setPaymentDate} /><Choice label="Payment Mode" value={method} onChange={setMethod} options={['cash', 'bank', 'upi'].map(id => ({
           id,
           name: id
-        }))} /><Button title="Mark as Paid" disabled={busy || detail.status !== 'unpaid'} onPress={() => pay([detail])} />
+        }))} />{dirty ? <Notice>Save actuals and recalculate before marking this salary as paid.</Notice> : null}<Button title="Mark as Paid" disabled={busy || dirty || detail.status !== 'unpaid'} onPress={() => pay([detail])} />
     </View> : null}</>}
   </View>;
 }

@@ -35,3 +35,21 @@ test('vendor commission includes existing vendor links without a wage rule',()=>
   expect(commissionSelection(existing[0].id)).toEqual({labour_engagement_id:'9',laborvendor_id:null});
   expect(vendorLabourOptions({})).toEqual([]);
 });
+
+test('opening searchable dropdown dismisses the prior keyboard without autofocus and survives parent rerenders',async()=>{
+  const {Keyboard}=require('react-native');
+  const dismiss=jest.spyOn(Keyboard,'dismiss').mockImplementation(()=>{});
+  const onChange=jest.fn();
+  const ui=await render(<Choice label="Harvest unit" value="" options={options} onChange={onChange}/>);
+  await fireEvent.press(ui.getByLabelText('Harvest unit'));
+  expect(dismiss).toHaveBeenCalled();
+  expect(ui.getByLabelText('Search Harvest unit').props.autoFocus).not.toBe(true);
+  await fireEvent.changeText(ui.getByLabelText('Search Harvest unit'),'Vendor 11');
+  await ui.rerender(<Choice label="Harvest unit" value="" options={options.map(x=>({...x}))} onChange={onChange}/>);
+  expect(ui.getByLabelText('Search Harvest unit').props.value).toBe('Vendor 11');
+  await fireEvent.press(ui.getByText('Vendor 11'));
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(onChange).toHaveBeenCalledWith('11');
+  expect(ui.queryByLabelText('Search Harvest unit')).toBeNull();
+  dismiss.mockRestore();
+});
