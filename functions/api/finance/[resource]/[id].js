@@ -2,6 +2,7 @@ import { json, options, body, fail, withFinanceLog } from '../../../_shared/http
 import { financeContext, season, crop, yieldType, saveCommissionRule } from '../../../_shared/finance.js';
 export function onRequestOptions(){return options();}
 async function patchFinance({request,env,params}){try{const {propertyId}=await financeContext(request,env);const b=await body(request),id=Number(params.id),who=String(b.modified_by||'Owner').slice(0,80);
+  if(params.resource==='wageRules')return json({error:'Historical wage rates are immutable. Use Set Rates to create a new dated version.'},409);
   if(b.action==='archive'){
     if(params.resource==='yieldTypes'){const owned=await env.DB.prepare(`SELECT fyt.finance_yield_type_id FROM finance_yield_type fyt JOIN variety_master vm ON vm.variety_master_id=fyt.variety_master_id JOIN crop_type_master ct ON ct.crop_type_id=vm.crop_type_id JOIN crop_master cm ON cm.crop_id=ct.crop_id WHERE fyt.finance_yield_type_id=? AND cm.property_id=?`).bind(id,propertyId).first();if(!owned)return json({error:'Record not found'},404);await env.DB.prepare(`UPDATE finance_yield_type SET status='archived',modified_on=CURRENT_TIMESTAMP,modified_by=? WHERE finance_yield_type_id=?`).bind(who,id).run();return json({ok:true,status:'archived'});}
     const map={seasons:['finance_season','season_id',true],cycles:['finance_settlement_cycle','settlement_cycle_id',true],wageRules:['finance_wage_rule','wage_rule_id',true],commissionRules:['finance_vendor_commission_rule','vendor_commission_rule_id',true],marketRates:['finance_market_rate','market_rate_id',false],buyerOffers:['finance_buyer_offer','buyer_offer_id',false]},cfg=map[params.resource];if(!cfg)return json({error:'This record cannot be archived here'},400);const sql=cfg[2]?`UPDATE ${cfg[0]} SET status='archived',modified_on=CURRENT_TIMESTAMP,modified_by=? WHERE ${cfg[1]}=? AND property_id=?`:`UPDATE ${cfg[0]} SET status='archived' WHERE ${cfg[1]}=? AND property_id=?`;const result=await env.DB.prepare(sql).bind(...(cfg[2]?[who,id,propertyId]:[id,propertyId])).run();return result.meta.changes?json({ok:true,status:'archived'}):json({error:'Record not found'},404);
@@ -36,6 +37,7 @@ export async function onRequestPatch(ctx){return withFinanceLog(ctx,'update',()=
 async function deleteFinance({request,env,params}){
   try{
     const {propertyId}=await financeContext(request,env),id=Number(params.id);
+    if(params.resource==='wageRules')return json({error:'Historical wage rates cannot be deleted.'},409);
     const map={
       seasons:['finance_season','season_id'],
       cycles:['finance_settlement_cycle','settlement_cycle_id'],

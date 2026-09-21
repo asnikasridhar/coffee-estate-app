@@ -79,7 +79,7 @@ export async function payrollSetup(env, p) {
     rules: await all(env, `${ruleQuery} WHERE r.property_id=? AND r.status='active' ORDER BY r.effective_from DESC,r.wage_rule_id DESC`, p),
     cycles: await all(env, "SELECT * FROM finance_settlement_cycle WHERE property_id=? AND status='active' ORDER BY cycle_name", p),
     units: await all(env, 'SELECT * FROM baseunit ORDER BY baseunit_name'),
-    advances: await all(env, `SELECT a.*,COALESCE(ar.reason,'Other') reason,l.name labor_name,ROUND(a.amount-COALESCE((SELECT SUM(r.amount) FROM payroll_advance_recovery r WHERE r.advance_id=a.advance_id),0),2) remaining FROM payroll_advance a LEFT JOIN payroll_advance_reason ar ON ar.advance_id=a.advance_id JOIN labors l ON l.labor_id=a.labor_id WHERE a.property_id=? ORDER BY a.paid_date DESC,a.advance_id DESC`, p),
+    advances: await all(env, `SELECT a.*,COALESCE(ar.reason,'Other') reason,l.name labor_name,ROUND(a.amount-COALESCE((SELECT SUM(r.amount) FROM payroll_recoveries_all r WHERE r.advance_id=a.advance_id),0),2) remaining FROM payroll_advance a LEFT JOIN payroll_advance_reason ar ON ar.advance_id=a.advance_id JOIN labors l ON l.labor_id=a.labor_id WHERE a.property_id=? ORDER BY a.paid_date DESC,a.advance_id DESC`, p),
     history: await all(env, `SELECT w.*,l.name labor_name,c.cycle_name,s.breakdown_json,s.payment_method,s.settled_on,pd.payment_date FROM finance_wage_period w JOIN labors l ON l.labor_id=w.labor_id LEFT JOIN finance_settlement_cycle c ON c.settlement_cycle_id=w.settlement_cycle_id LEFT JOIN payroll_settlement s ON s.wage_period_id=w.wage_period_id LEFT JOIN payroll_payment_detail pd ON pd.wage_period_id=w.wage_period_id WHERE w.property_id=? AND w.status IN ('paid','finalized') ORDER BY w.period_end DESC,w.wage_period_id DESC`, p)
   };
 }
@@ -180,7 +180,7 @@ export async function salaryPreview(env, p, b) {
   if (!days.some(d => d.attendance > 0)) errors.push('No paid attendance in this period');
   const sum = key => money(days.reduce((n, d) => n + d[key], 0));
   const total = sum('total_earned');
-  const advances = await all(env, `SELECT a.*,ROUND(a.amount-COALESCE((SELECT SUM(r.amount) FROM payroll_advance_recovery r WHERE r.advance_id=a.advance_id),0),2) remaining FROM payroll_advance a WHERE property_id=? AND labor_id=? AND paid_date<=? ORDER BY paid_date,advance_id`, p, l.labor_id, end);
+  const advances = await all(env, `SELECT a.*,ROUND(a.amount-COALESCE((SELECT SUM(r.amount) FROM payroll_recoveries_all r WHERE r.advance_id=a.advance_id),0),2) remaining FROM payroll_advance a WHERE property_id=? AND labor_id=? AND paid_date<=? ORDER BY paid_date,advance_id`, p, l.labor_id, end);
   let available = total;
   const recoveries = [];
   for (const a of advances) {

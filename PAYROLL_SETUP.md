@@ -1,5 +1,62 @@
 # Labour salary
 
+## Labour exceptions and section help (0026)
+
+The four Set Rates tabs remain unchanged. Daily Wages, Work Rates and Overtime have a secondary Labour Exceptions action. The exception list contains only people with stored exceptions and supports name/ID search, current rates and history. New versions always need From/To dates; no historical record is edited or deleted. No labour-specific seasonal exceptions are created.
+
+Migration `0026_labour_rate_exceptions.sql` adds the optional `labour_rate_exception` table, per-person/per-component overlap protection and immutable-history triggers. The existing bundled `finance_wage_rule` remains the legacy fallback; it is not copied into exception records. Apply 0025 before 0026. Deployment requires the API and mobile bundle updates as well as migrations.
+
+API additions: POST `/api/payroll/labour-exception`, GET `/api/payroll/rate-context`. Existing GET `/api/payroll/rates` now includes exception history and eligible labourers. Assignment estimates accept an optional `labor_id`. All endpoints use the selected property and authenticated user; client-supplied audit usernames are ignored.
+
+The shared resolver uses the work date and resolves each component independently:
+
+1. An active labour daily exception takes priority over seasonal wages (confirmed by the owner).
+2. Without a daily exception, use a configured seasonal wage, otherwise the estate daily wage. Selecting regular wages skips the seasonal wage, but still respects a labour exception.
+3. Work and OT exceptions affect only their selected type. Other types inherit estate defaults. Expired/future exceptions do not apply.
+4. Seasonal bonuses remain estate-wide and independent of daily wage exceptions.
+5. Settlement-specific amount overrides and advance deductions apply after rate resolution.
+
+A valid exception can supply a component when an estate default is absent; it does not supply other missing components. Saving an exception identical to defaults throughout its date range is rejected as unnecessary. Paid snapshots preserve the exact exception records and source labels used; subsequent versions do not recalculate them.
+
+Small accessible information buttons explain rate sections, effective periods, history, exceptions and Finance terminology. They open a dismissible explanation without activating the surrounding navigation row. There is no fifth Set Rates tab or change to global navigation.
+
+## Estate-wide Set Rates and Salary Settlement (0025)
+
+Set Rates and Salary Settlement are Home/Modules entries. Finance > Labour Salary contains history and reports. Global navigation and Attendance remain unchanged. Work Assignment shows the rate applicable on the assignment date and an estimated work amount.
+
+- All four rate categories require inclusive From/To dates. Saves append a version; SQL triggers reject overlapping versions within the same estate/category and reject edits/deletes. Use Copy to new date range to create the next version. Existing labour-specific rate records also become immutable.
+- Daily wages have explicit full/half amounts. A seasonal wage overrides only the configured component; blank seasonal wages fall back to regular wages. Owners can select regular wages for an unpaid daily record.
+- New seasonal rules pay one threshold bonus per day (quantity >= minimum), not repeated groups. This follows the latest specification. Existing legacy bonus modes remain unchanged. Only one seasonal profile may cover an estate/date, avoiding ambiguous precedence.
+- Work types reuse `work_activity`; a flat `work` charge applies once per assignment, while `day` follows attendance. Quantity-based charges require the matching Work Assignment unit. Base wages, bonuses, OT and manual adjustments without block attribution appear as Unallocated in cost reports; they are not arbitrarily distributed among blocks.
+- Overtime types and rates are estate-specific. Actual quantities, regular/seasonal choice and notes are stored server-side. Manual overrides append original amount, replacement amount, reason, authenticated user ID and timestamp. They never edit a master rate.
+- Mark Selected as Paid is atomic for up to 100 workers. Each frozen snapshot contains applicable rate versions, attendance, work rates/quantities/blocks, seasonal bonus, OT/extra, original components, override audit, advances/recoveries and final payable. Duplicate/overlapping payments and shared advance over-recovery are blocked across legacy and new settlements.
+- Paid reports read stored snapshots; unpaid totals are explicitly provisional. Historical names and work details come from snapshots. Older period records without detailed snapshots retain saved period totals; missing detail cannot be reconstructed safely. Legacy periods are included by period end date. Crop-season attribution is frozen at payment using the applicable finance season, distinct from seasonal wage profiles.
+- Existing labour-specific rates remain a fallback before the estate's first daily rate version. A missing/expired estate daily rate after that date is an error, not a silent fallback. Review historical overtime when moving to typed estate overtime. Existing Settlement Cycle and vendor commission configuration remain available; the new operational payment screen is daily.
+
+Migration `0025_estate_rate_versions.sql` adds estate rate versions, overtime types, daily actuals, override audit, immutable payments/recoveries and integrity triggers. Apply after 0024, before deploying the new API/mobile bundle. It does not recalculate or rewrite existing payments.
+
+Use the tracked runner for remote deployment (after reconciling manually applied migrations):
+
+```powershell
+# DEV
+npx wrangler d1 migrations apply dev-coffee-estate-db --config wrangler-dev.toml --remote
+# STG
+npx wrangler d1 migrations apply stg-coffee-estate-db --config wrangler-stg.toml --remote
+# Production
+npx wrangler d1 migrations apply coffee-estate-db --config wrangler.toml --remote
+```
+
+Review `d1 migrations list` first: these commands apply every pending file, including 0024 if still absent. Remote application/deployment is not performed by the implementation task.
+
+Local SQLite (once, from `server`, after a backup):
+
+```powershell
+node src/run-migration.js ../migrations/0025_estate_rate_versions.sql
+```
+
+Verification includes the 430 earned / 20 advance / 410 payable example, threshold bonuses, inclusive boundaries, missing/expired rates, overlap rejection, June retaining 80 after July changes to 100, authenticated override authors, stale previews, atomic bulk payment conflicts, immutable paid reports, Express/Cloudflare API parity and UI tests.
+
+
 Open Finance > Labour Salary. Daily entry, Settlement, History and Salary rates use the Attendance module's worker rows, date fields, warm colours and bottom sheets.
 
 ## Calculation

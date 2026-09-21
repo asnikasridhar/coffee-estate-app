@@ -22,6 +22,7 @@ const migration = fs.readFileSync('../migrations/0023_labour_payroll.sql', 'utf8
 db.exec(migration);
 db.exec(migration);
 if (!db.prepare("SELECT 1 FROM sqlite_master WHERE name='payroll_rule_options'").get()) db.exec(fs.readFileSync('../migrations/0024_salary_simple_flow.sql', 'utf8'));
+if (!db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_rate_version'").get()) db.exec(fs.readFileSync('../migrations/0025_estate_rate_versions.sql', 'utf8'));
 const env = d1Adapter(db);
 let server;
 try {

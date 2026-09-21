@@ -7,10 +7,11 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "seed": "node src/seed.js",
-    "migrate": "node run-migration.js"
-    ,"test": "npm run test:finance && npm run test:payroll"
-    ,"test:finance": "node scripts/test-finance-api.mjs"
-    ,"test:payroll": "node scripts/test-payroll.mjs"
+    "migrate": "node run-migration.js",
+    "test": "npm run test:finance && npm run test:payroll && npm run test:estate-salary",
+    "test:finance": "node scripts/test-finance-api.mjs",
+    "test:payroll": "node scripts/test-payroll.mjs",
+    "test:estate-salary": "node scripts/test-estate-salary.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.9.1",

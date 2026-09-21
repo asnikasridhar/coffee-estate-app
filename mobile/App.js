@@ -29,7 +29,8 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
 import FertilizerManagement from "./FertilizerManagement";
-import FinanceModule from "./FinanceModule";
+import FinanceModule, { Choice as FinanceChoice, DateField as FinanceDateField } from "./FinanceModule";
+import { SetRates, SalarySettlement, SalaryReports, salaryReportTables } from "./SalaryOperations";
 import AppIcon from "./src/components/AppIcon";
 import EnvironmentWatermark from "./src/components/EnvironmentWatermark";
 import { APP_ENVIRONMENT } from "./src/config/environment";
@@ -1194,6 +1195,9 @@ const legacyModuleGroups = [
     icon: "📝",
     items: [
       "attendanceQuick",
+      "setRates",
+      "salarySettlement",
+      "salaryReports",
       "rainfallQuick",
       "yieldQuick",
       "expenses",
@@ -1247,6 +1251,9 @@ const labels = {
   notifications: "Notifications",
   settings: "Settings",
   finance: "Finance",
+  setRates: "Set Rates",
+  salarySettlement: "Salary Settlement",
+  salaryReports: "Labour Reports",
 };
 
 const resourceOf = {
@@ -2019,6 +2026,7 @@ export default function App() {
         {screen === "module" && (
           <ModuleScreen
             moduleKey={activeModule}
+            openModule={openModule}
             user={user}
             propertyId={propertyId}
             data={data}
@@ -2759,7 +2767,7 @@ function Home({
         </TouchableOpacity>
       </View>
       <View style={styles.managementActions}>
-        {favorites.filter((key) => HOME_MODULE_KEYS.includes(key)).slice(0, 8).map((key) => (
+        {[...new Set([...favorites.filter((key) => HOME_MODULE_KEYS.includes(key)).slice(0, 8), "setRates", "salarySettlement"])].map((key) => (
           <TouchableOpacity
             key={key}
             style={styles.managementAction}
@@ -2920,6 +2928,18 @@ function Modules({ openModule, t, language }) {
   );
 }
 
+function SalaryOperationsEntry({propertyId,request}) {
+  const [history,setHistory]=useState(false);
+  return history?<SalaryReports propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField} exportPdf={exportSalaryPdf} onBack={()=>setHistory(false)}/>:<SalarySettlement propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField} onHistory={()=>setHistory(true)} exportPdf={exportSalaryPdf}/>;
+}
+async function exportSalaryPdf(report,tables=salaryReportTables(report)) {
+  const paid=report.rows.filter(r=>['paid','partially paid'].includes(r.status)),unpaid=report.rows.filter(r=>r.status==='unpaid');
+  const sum=(rows,key)=>rows.reduce((n,r)=>n+Number(r[key]||0),0).toFixed(2);
+  const table=(title,rows)=>{const columns=Object.keys(rows[0]||{});return `<h2>${htmlEscape(title)}</h2><table><thead><tr>${columns.map(c=>`<th>${htmlEscape(c)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${columns.map(c=>`<td>${htmlEscape(r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;};
+  const html=`<html><head><meta charset="utf-8"/><style>body{font-family:Arial;padding:20px;color:#3f2616}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #d9c4aa;padding:5px}h2{font-size:16px}</style></head><body><h1>${htmlEscape(report.property)} - Labour Salary</h1><p>${report.from} to ${report.to}</p><p>${htmlEscape(report.note)}</p><p>Final labour cost: Rs ${sum(paid,'total_earned')} | Net payments: Rs ${sum(paid,'settled_paid')} | Advances paid: Rs ${sum(report.advances,'amount')} | Advance deductions: Rs ${sum(paid,'advance_paid')} | Unpaid (provisional): Rs ${sum(unpaid,'settled_paid')} | Pending calculations: ${report.rows.filter(r=>r.status==='pending').length}</p>${Object.entries(tables).map(([title,rows])=>table(title,rows)).join('')}${table('Salary / Attendance',report.rows.map(r=>({labour:r.labor_name,date:r.work_date,status:r.status,days:r.attendance??r.attendance_days??'',earned:r.total_earned??'',advance:r.advance_paid??'',net:r.settled_paid??'',OT:r.overtime_earned??'',bonus:r.variable_earned??''})))}</body></html>`;
+  const result=await Print.printToFileAsync({html});await Sharing.shareAsync(result.uri,{mimeType:'application/pdf',dialogTitle:'Labour salary report'});
+}
+
 function exportableRows(rows = []) {
   return rows.map((row) =>
     Object.fromEntries(
@@ -3026,6 +3046,7 @@ function Reports({ dashboard, data, openModule, t = translator("en") }) {
   return (
     <View>
       <Text style={styles.screenTitle}>{t("reports")}</Text>
+      <TouchableOpacity style={styles.card} onPress={()=>openModule("salaryReports")}><Text style={styles.sectionTitle}>Labour Salary Reports</Text><Text>Frozen payments, labour, work, block and advance reports</Text></TouchableOpacity>
       <View style={styles.grid}>
         {reportCards.map((r) => (
           <TouchableOpacity
@@ -3085,6 +3106,7 @@ function More({ user, onLogout, openModule, t = translator("en") }) {
 
 function ModuleScreen({
   moduleKey,
+  openModule,
   user,
   propertyId,
   data,
@@ -3413,6 +3435,9 @@ function ModuleScreen({
             language={language}
           />
     );
+  if (moduleKey === "setRates") return <SetRates key={propertyId} propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField}/>;
+  if (moduleKey === "salarySettlement") return <SalaryOperationsEntry key={propertyId} propertyId={propertyId} request={request}/>;
+  if (moduleKey === "salaryReports") return <SalaryReports key={propertyId} propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField} exportPdf={exportSalaryPdf}/>;
   if (moduleKey === "finance")
     return (
       <FinanceModule
@@ -3421,6 +3446,8 @@ function ModuleScreen({
         data={data}
         meta={meta}
         request={request}
+        exportSalaryPdf={exportSalaryPdf}
+        openModule={openModule}
       />
     );
   if (
@@ -6521,6 +6548,8 @@ function WorkAssignmentScreen({
   const [notes, setNotes] = useState("");
   const [workQuantity,setWorkQuantity]=useState("");
   const [workUnit,setWorkUnit]=useState("acre");
+  const [workRateHint,setWorkRateHint]=useState(null);
+  useEffect(()=>{let alive=true;setWorkRateHint(null);if(activityId)request(`/api/payroll/assignment-rate?${new URLSearchParams({date:workDate,work_activity_id:activityId,quantity:workQuantity,unit:workUnit,labor_id:workMode!=="quick"?String(selectedLabor?.labor_id||""):""})}`).then(r=>{if(alive)setWorkRateHint(r);}).catch(e=>{if(alive)setWorkRateHint({message:e.message});});return()=>{alive=false};},[propertyId,workDate,activityId,workQuantity,workUnit,workMode,selectedLabor?.labor_id]);
   const [drafts, setDrafts] = useState([]);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [pendingEdit, setPendingEdit] = useState(null);
@@ -6962,6 +6991,7 @@ function WorkAssignmentScreen({
             data={modalData}
             t={t}
           />
+          {workRateHint?<View style={styles.card}><Text style={styles.fieldLabel}>{workRateHint.rate!=null?`Rate: Rs ${workRateHint.rate} / ${workRateHint.unit} (${workRateHint.rate_source||"Estate Rate"})`:workRateHint.message}</Text>{workRateHint.estimated_amount!=null?<Text>Estimated work amount: Rs {workRateHint.estimated_amount}</Text>:workRateHint.rate!=null?<Text>{workRateHint.message||'Enter quantity in the configured unit for an estimate.'}</Text>:null}</View>:null}
           <FieldText label="Completed work quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="For salary work charges"/>
           <View style={styles.quickActivities}>{['acre','tree','day','kg','bushel'].map(unit=><TouchableOpacity key={unit} onPress={()=>setWorkUnit(unit)} style={[styles.quickActivity,workUnit===unit&&styles.quickActivityActive]}><Text>{unit}</Text></TouchableOpacity>)}</View>
           <FieldText
@@ -7225,7 +7255,8 @@ function WorkAssignmentScreen({
                 data={modalData}
                 t={t}
               />
-              <FieldText label="Completed work quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="For salary work charges"/>
+              {workRateHint?<View style={styles.card}><Text style={styles.fieldLabel}>{workRateHint.rate!=null?`Rate: Rs ${workRateHint.rate} / ${workRateHint.unit} (${workRateHint.rate_source||"Estate Rate"})`:workRateHint.message}</Text>{workRateHint.estimated_amount!=null?<Text>Estimated work amount: Rs {workRateHint.estimated_amount}</Text>:workRateHint.rate!=null?<Text>{workRateHint.message||'Enter quantity in the configured unit for an estimate.'}</Text>:null}</View>:null}
+          <FieldText label="Completed work quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="For salary work charges"/>
           <View style={styles.quickActivities}>{['acre','tree','day','kg','bushel'].map(unit=><TouchableOpacity key={unit} onPress={()=>setWorkUnit(unit)} style={[styles.quickActivity,workUnit===unit&&styles.quickActivityActive]}><Text>{unit}</Text></TouchableOpacity>)}</View>
           <FieldText
                 label={`${copy.notes} (${t("optional")})`}
