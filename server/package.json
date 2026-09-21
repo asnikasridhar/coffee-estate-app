@@ -8,10 +8,11 @@
     "start": "node src/index.js",
     "seed": "node src/seed.js",
     "migrate": "node run-migration.js",
-    "test": "npm run test:finance && npm run test:payroll && npm run test:estate-salary",
+    "test": "npm run test:finance && npm run test:payroll && npm run test:estate-salary && npm run test:d1-salary-migrations",
     "test:finance": "node scripts/test-finance-api.mjs",
     "test:payroll": "node scripts/test-payroll.mjs",
-    "test:estate-salary": "node scripts/test-estate-salary.mjs"
+    "test:estate-salary": "node scripts/test-estate-salary.mjs",
+    "test:d1-salary-migrations": "node scripts/test-d1-salary-migrations.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.9.1",

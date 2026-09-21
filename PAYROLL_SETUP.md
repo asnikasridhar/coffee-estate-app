@@ -152,3 +152,38 @@ For a local database that has not received 0024, from `server`:
 ```powershell
 node src/run-migration.js ../migrations/0024_salary_simple_flow.sql
 ```
+
+## Versioned rates and labour exceptions (0025–0026)
+
+Apply these migrations before using the new API and mobile screens. On 2026-09-21,
+DEV successfully received both migrations and their `d1_migrations` entries.
+STG and production were not changed during this repair.
+
+Wrangler 3.114.17's remote `migrations apply` path returned `incomplete input`
+for this trigger-heavy SQL. The transactional `d1 execute --file` import path
+successfully applied the same schema. Simplifying trigger conditions alone did
+not resolve the command-path failure. Use the file procedure below when needed.
+
+First check the target's ledger with `d1 migrations list`. The following example
+is ONLY for a database where BOTH 0025 and 0026 are pending, migrations through
+0024 are applied, and neither new schema is already present. Do not rerun it on
+DEV, which is already migrated. For another environment, change both database
+name and config together.
+
+```powershell
+npx wrangler d1 migrations list dev-coffee-estate-db --config wrangler-dev.toml --remote
+
+New-Item -ItemType Directory -Force .tmp | Out-Null
+$salarySql = ''
+foreach ($salaryMigration in @('0025_estate_rate_versions.sql', '0026_labour_rate_exceptions.sql')) {
+    $salarySql += (Get-Content "migrations/d1/$salaryMigration" -Raw)
+    $salarySql += "`nINSERT INTO d1_migrations(name) VALUES ('$salaryMigration');`n"
+}
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) '.tmp/salary-migrations-d1.sql'), $salarySql)
+npx wrangler d1 execute dev-coffee-estate-db --config wrangler-dev.toml --remote --file .tmp/salary-migrations-d1.sql
+npx wrangler d1 migrations list dev-coffee-estate-db --config wrangler-dev.toml --remote
+```
+
+The import includes schema and ledger entries together; D1 rolls back the import
+if it fails. Do not insert ledger entries separately to conceal a failed schema
+migration. If only 0026 is pending, include only that filename in the array.

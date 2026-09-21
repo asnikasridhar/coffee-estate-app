@@ -19,7 +19,11 @@ CREATE TABLE labour_rate_exception (
 );
 CREATE INDEX labour_exception_dates ON labour_rate_exception(property_id,labor_id,category,type_id,effective_from,effective_to);
 CREATE TRIGGER labour_exception_overlap BEFORE INSERT ON labour_rate_exception BEGIN
- SELECT CASE WHEN EXISTS(SELECT 1 FROM labour_rate_exception r WHERE r.property_id=NEW.property_id AND r.labor_id=NEW.labor_id AND r.category=NEW.category AND r.type_id=NEW.type_id AND r.effective_from<=NEW.effective_to AND r.effective_to>=NEW.effective_from) THEN RAISE(ABORT,'Labour exception dates overlap an existing version') END;
+ SELECT RAISE(ABORT,'Labour exception dates overlap an existing version') WHERE EXISTS(SELECT 1 FROM labour_rate_exception r WHERE r.property_id=NEW.property_id AND r.labor_id=NEW.labor_id AND r.category=NEW.category AND r.type_id=NEW.type_id AND r.effective_from<=NEW.effective_to AND r.effective_to>=NEW.effective_from);
 END;
-CREATE TRIGGER labour_exception_no_update BEFORE UPDATE ON labour_rate_exception BEGIN SELECT RAISE(ABORT,'Labour exceptions are immutable; create a new dated version'); END;
-CREATE TRIGGER labour_exception_no_delete BEFORE DELETE ON labour_rate_exception BEGIN SELECT RAISE(ABORT,'Historical labour exceptions cannot be deleted'); END;
+CREATE TRIGGER labour_exception_no_update BEFORE UPDATE ON labour_rate_exception BEGIN
+ SELECT RAISE(ABORT,'Labour exceptions are immutable. Create a new dated version');
+END;
+CREATE TRIGGER labour_exception_no_delete BEFORE DELETE ON labour_rate_exception BEGIN
+ SELECT RAISE(ABORT,'Historical labour exceptions cannot be deleted');
+END;
