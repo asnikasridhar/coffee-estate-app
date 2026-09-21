@@ -5,7 +5,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import { d1Adapter } from '../src/utils/d1Adapter.js';
-import { estateRates, estateWrite, estatePreview, estateDay, salaryReport, assignmentEstimate } from '../../functions/_shared/estateSalary.js';
+import { workCompletionDay, saveWorkCompletion, estateRates, estateWrite, estatePreview, estateDay, salaryReport, assignmentEstimate } from '../../functions/_shared/estateSalary.js';
 import { salaryReportHtml } from '../../mobile/salaryReportHtml.js';
 
 // All writes go to an isolated backup, never the working or remote database.
@@ -17,7 +17,7 @@ const db = new Database(file);
 mock.timers.enable({apis:['Date'],now:new Date('2028-01-01T06:00:00Z')});
 db.pragma('foreign_keys = ON');
 try {
-  for (const [table, migration] of [['payroll_daily','0023_labour_payroll.sql'],['payroll_rule_options','0024_salary_simple_flow.sql'],['estate_rate_version','0025_estate_rate_versions.sql'],['labour_rate_exception','0026_labour_rate_exceptions.sql']]) {
+  for (const [table, migration] of [['payroll_daily','0023_labour_payroll.sql'],['payroll_rule_options','0024_salary_simple_flow.sql'],['estate_rate_version','0025_estate_rate_versions.sql'],['labour_rate_exception','0026_labour_rate_exceptions.sql'],['work_completion','0027_work_completion.sql']]) {
     if (!db.prepare('SELECT 1 FROM sqlite_master WHERE name=?').get(table)) db.exec(fs.readFileSync(`../migrations/${migration}`, 'utf8'));
   }
   const owner = db.prepare('SELECT * FROM property LIMIT 1').get();
@@ -37,8 +37,13 @@ try {
   const rate=(category,from,to,payload)=>write('rate-version',{category,effective_from:from,effective_to:to,payload});
   const attend=(id,date,fraction=1)=>db.prepare('INSERT INTO attendance(labor_id,property_id,user_id,entry_date,attendance_value,created_by) VALUES(?,?,?,?,?,?)').run(id,p,owner.user_id,date,fraction,who);
   const assign=(id,date,type,quantity=1,workUnit='acre')=>db.prepare('INSERT INTO work_assignment(property_id,labor_id,work_date,work_activity_id,block_id,work_quantity,work_unit) VALUES(?,?,?,?,?,?,?)').run(p,id,date,type,block,quantity,workUnit === 'work' ? null : workUnit);
-  const input=(id,date,b={})=>write('settlement-input',{labor_id:id,work_date:date,...b});
-  const preview=(id,date)=>estatePreview(env,p,id,date);
+  const input=async(id,date,b={})=>{const result=await write('settlement-input',{labor_id:id,work_date:date,...b});await complete(id,date,b.quantity);return result;};
+  const complete=async(id,date,harvestQuantity)=>{
+    const list=await workCompletionDay(env,p,date),labor=list.labours.find(l=>l.labor_id===id);
+    const items=(labor?.assignments || []).filter(a=>a.actual_quantity===null || (a.is_harvest && harvestQuantity!=null)).map(a=>({work_assignment_id:a.work_assignment_id,assignment_key:a.assignment_key,revision:a.revision,actual_quantity:a.is_harvest && harvestQuantity!=null?harvestQuantity:a.assigned_quantity??1}));
+    if(items.length)await saveWorkCompletion(env,p,{date,items},who);
+  };
+  const preview=async(id,date)=>{await complete(id,date);return estatePreview(env,p,id,date);};
   const exception=(id,category,b={})=>write('labour-exception',{labor_id:id,category,effective_from:'2026-09-01',effective_to:'2026-12-31',...b});
   const pay=async (date,ids)=>write('pay-selected',{work_date:date,payment_date:date,payment_method:'cash',items:await Promise.all(ids.map(async id=>({labor_id:id,preview_key:(await preview(id,date)).preview_key})))});
   const override=async(id,date,value)=>write('settlement-override',{labor_id:id,work_date:date,component:'work_earned',override_amount:value,reason:'Difficult terrain',preview_key:(await preview(id,date)).preview_key});
@@ -81,7 +86,7 @@ try {
   await exception(boundary,'daily',{full_day:90,half_day:45,effective_from:'2026-11-01',effective_to:'2026-11-30'});for(const [date,wage] of [['2026-10-20',150],['2026-11-01',90]]){attend(boundary,date);assert.equal((await preview(boundary,date)).fixed_earned,wage);}check(18,'Future exception only eligible from November 1');
   await exception(boundary,'work',{type_id:fert,rate:40,unit:'acre',effective_to:'2026-09-30'});await rate('work','2026-08-01','2026-08-31',{rates:workRates});for(const [date,value] of [['2026-08-31',50],['2026-09-01',40],['2026-09-30',40],['2026-10-01',50]]){assert.equal((await assignmentEstimate(env,p,{date,labor_id:boundary,work_activity_id:fert,quantity:1,unit:'acre'})).estimated_amount,value);}check(19,'Inclusive work exception boundaries');
   await assert.rejects(exception(boundary,'work',{type_id:fert,rate:45,unit:'acre',effective_from:'2026-09-15',effective_to:'2026-10-15'}),/overlap/i);check(20,'Overlapping exception rejected');
-  attend(best,'2026-09-25');assign(best,'2026-09-25',pepper,1,'work');r=(await estateDay(env,p,'2026-09-25')).rows.find(x=>x.labor_id===best);assert.equal(r.status,'pending');assert.match(r.error,/Pepper Tying/);await assert.rejects(pay('2026-09-25',[best]),/Pepper Tying/);check(21,'Missing work rate blocks payment');
+  attend(best,'2026-09-25');assign(best,'2026-09-25',pepper,1,'work');await complete(best,'2026-09-25');r=(await estateDay(env,p,'2026-09-25')).rows.find(x=>x.labor_id===best);assert.equal(r.status,'pending');assert.match(r.error,/Pepper Tying/);await assert.rejects(pay('2026-09-25',[best]),/Pepper Tying/);check(21,'Missing work rate blocks payment');
   attend(best,'2026-09-26');assign(best,'2026-09-26',fert);assign(best,'2026-09-26',weed,2);r=await preview(best,'2026-09-26');assert.equal(r.total_earned,190);assert.equal(r.work_charges.length,2);check(22,'Multiple work assignments = 190');
   attend(best,'2026-09-27',.5);assign(best,'2026-09-27',fert);await input(best,'2026-09-27',{extras:[{overtime_type_id:ot,quantity:1}]});assert.equal((await preview(best,'2026-09-27')).total_earned,200);check(23,'Half day + work + OT = 200');
   attend(sundara,'2026-10-19');await input(sundara,'2026-10-19',{quantity:5,unit_id:unit});r=await preview(sundara,'2026-10-19');assert.deepEqual([r.fixed_earned,r.variable_earned,r.daily_rate_source],[70,50,'Custom Labour Rate']);assert.ok(r.messages.some(m=>m.includes('takes priority')));check(24,'Confirmed custom-wage precedence; seasonal bonus still applies');

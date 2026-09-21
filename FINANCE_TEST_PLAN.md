@@ -1,5 +1,49 @@
 # Finance Regression Test Plan
 
+## Current target: one-screen Work Completion
+
+The operational flow is Attendance → Work Assignment → Work Completion →
+Salary Settlement. Completion groups every assignment under its labourer, with
+inline actual quantities, automatic units, All shortcuts and Done for fixed work.
+There is one Save Work Completion button. Extra work, OT, rate exceptions and
+notes are optional actions. Salary shows a compact list for bulk payment;
+details hide zero components, and editing is behind Salary exception.
+
+Run:
+
+```powershell
+npm test --prefix server
+npm test --prefix mobile -- --watch=false
+```
+
+New coverage in `test-work-completion.mjs` and `WorkCompletion.test.js`:
+
+- Assigned 2 acres starts with an empty actual and blocks salary payment.
+- Actual 1 acre produces wage 120 + work 50 = gross 170; advance 20 leaves 150.
+- The assignment stays at 2 acres; salary and snapshots use actual 1 acre.
+- Multiple works are grouped under one labour; all 30 labourers have inline inputs.
+- All fills the assigned quantity without confirmation or a detail screen.
+- Unentered work remains pending; explicit zero is a completed entry worth zero work charges.
+- Partial bulk saves preserve unentered rows; numeric and fixed Done entries save together.
+- Harvest with no planned quantity shows no assigned-zero label; saved harvest actuals supply the seasonal bonus automatically.
+- A single invalid/stale row prevents partial batch writes; concurrent completion changes also block stale salary payment.
+- Rate exceptions require reasons and create audit records; OT stays hidden until added.
+- Extra work pre-fills its labour and preserves other unsaved quantities.
+- Network errors preserve entered actuals for retry.
+- Paid completion is locked, and future rates cannot change paid report components.
+- Local and Cloudflare payroll GET routes expose the same completion list.
+- Salary details contain no harvest entry, no zero components and no Edit links alongside normal rows.
+
+The preceding 25 salary scenarios also remain covered, with test fixtures now
+explicitly recording completion before calculating work earnings. Existing paid
+snapshots are retained. Earlier tests for entering harvest in Salary Settlement
+are superseded by the completion-entry tests above.
+
+Migration 0027 is required before deploying these changes. No assigned quantity
+is backfilled as completed. Existing unpaid assignments therefore need completion
+confirmation. Android export and Functions compilation are checked locally;
+native keyboard/layout behaviour still needs a phone check.
+
 ## Salary attachment regression — 21 September 2026
 
 Run the numbered attachment scenarios with:

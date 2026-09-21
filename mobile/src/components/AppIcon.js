@@ -13,6 +13,7 @@ const names = {
   cropTypes: "git-branch-outline",
   varieties: "leaf-outline",
   plantInventory: "leaf-outline",
+  workCompletion: "checkbox-outline",
   workAssignments: "briefcase-outline",
   workActivities: "clipboard-outline",
   attendanceQuick: "calendar-outline",

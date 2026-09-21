@@ -7,7 +7,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { onRequestGet, onRequestPost } from '../../functions/api/payroll/[action].js';
 import { financeOverview } from '../../functions/_shared/finance.js';
 import { d1Adapter } from '../src/utils/d1Adapter.js';
-import { estateRates, estateWrite, estatePreview, estateDay, salaryReport, calculateEstateDay, assignmentEstimate, resolveRate } from '../../functions/_shared/estateSalary.js';
+import { workCompletionDay, saveWorkCompletion, estateRates, estateWrite, estatePreview, estateDay, salaryReport, calculateEstateDay, assignmentEstimate, resolveRate } from '../../functions/_shared/estateSalary.js';
 const file = path.join(os.tmpdir(), `estate-versions-${process.pid}.sqlite`);
 const source = new Database(path.resolve('data/coffee-estate.sqlite'), {
   readonly: true
@@ -18,7 +18,7 @@ process.env.DATABASE_FILE = file;
 const db = new Database(file);
 db.pragma('foreign_keys = ON');
 try {
-  for (const [table, migration] of [['payroll_daily', '0023_labour_payroll.sql'], ['payroll_rule_options', '0024_salary_simple_flow.sql'], ['estate_rate_version', '0025_estate_rate_versions.sql'], ['labour_rate_exception', '0026_labour_rate_exceptions.sql']]) if (!db.prepare('SELECT 1 FROM sqlite_master WHERE name=?').get(table)) db.exec(fs.readFileSync(`../migrations/${migration}`, 'utf8'));
+  for (const [table, migration] of [['payroll_daily', '0023_labour_payroll.sql'], ['payroll_rule_options', '0024_salary_simple_flow.sql'], ['estate_rate_version', '0025_estate_rate_versions.sql'], ['labour_rate_exception', '0026_labour_rate_exceptions.sql'], ['work_completion', '0027_work_completion.sql']]) if (!db.prepare('SELECT 1 FROM sqlite_master WHERE name=?').get(table)) db.exec(fs.readFileSync(`../migrations/${migration}`, 'utf8'));
   const owner = db.prepare('SELECT * FROM property LIMIT 1').get();
   const p = db.prepare("INSERT INTO property(user_id,property_name) VALUES(?,'Versioned salary test') RETURNING *").get(owner.user_id);
   const env = d1Adapter(db),
@@ -138,7 +138,7 @@ try {
   }), /No active Missing/);
   for (let i = 0; i < workers.length; i++) {
     db.prepare("INSERT INTO attendance(labor_id,property_id,user_id,entry_date,attendance_value,created_by) VALUES(?,?,?,?,?,'Test')").run(workers[i].labor_id, id, p.user_id, day, i === 2 ? .5 : 1);
-    db.prepare('INSERT INTO work_assignment(property_id,labor_id,work_date,work_activity_id,block_id,work_quantity,work_unit) VALUES(?,?,?,?,?,?,?)').run(id, workers[i].labor_id, day, activities[i].work_activity_id, newBlock.block_id, 1, 'acre');
+    db.prepare('INSERT INTO work_assignment(property_id,labor_id,work_date,work_activity_id,block_id,work_quantity,work_unit) VALUES(?,?,?,?,?,?,?)').run(id, workers[i].labor_id, day, activities[i].work_activity_id, newBlock.block_id, i===2?null:1, i===2?null:'acre');
   }
   await estateWrite(env, id, 'settlement-input', {
     labor_id: workers[2].labor_id,
@@ -152,6 +152,8 @@ try {
     amount: 20,
     reason: 'Personal'
   }, who);
+  const completion=await workCompletionDay(env,id,day);
+  await saveWorkCompletion(env,id,{date:day,items:completion.labours.flatMap(l=>l.assignments.map(a=>({work_assignment_id:a.work_assignment_id,assignment_key:a.assignment_key,revision:a.revision,actual_quantity:a.is_harvest?5:1})))},who);
   const list = await estateDay(env, id, day);
   assert.deepEqual(list.rows.map(r => r.total_earned), [150, 120, 160]);
   assert.deepEqual(list.rows.map(r => r.settled_paid), [150, 100, 160]);
@@ -209,7 +211,7 @@ try {
     half_day: 500
   });
   db.prepare('UPDATE attendance SET attendance_value=.5 WHERE property_id=?').run(id);
-  db.prepare('UPDATE work_assignment SET work_quantity=100 WHERE property_id=?').run(id);
+  assert.throws(()=>db.prepare('UPDATE work_assignment SET work_quantity=100 WHERE property_id=?').run(id),/Completion is recorded/);
   db.prepare("UPDATE labors SET name='Changed name' WHERE labor_id=?").run(workers[0].labor_id);
   const history = await salaryReport(env, id, {
     from: '2026-09-01',
@@ -308,6 +310,10 @@ try {
   await new Promise(resolve => server.once('listening', resolve));
   try {
     const origin = `http://127.0.0.1:${server.address().port}`;
+    const completionResponse=await fetch(origin+'/api/payroll/work-completion?date='+day,{headers});
+    assert.equal(completionResponse.status,200);assert.equal((await completionResponse.json()).labours.length,3);
+    const cloudCompletion=await onRequestGet({request:new Request('https://test/api/payroll/work-completion?date='+day,{headers}),env,params:{action:'work-completion'}});
+    assert.equal(cloudCompletion.status,200);assert.equal((await cloudCompletion.json()).labours.length,3);
     const r = await fetch(origin + '/api/payroll/rates', {
       headers
     });
@@ -469,6 +475,8 @@ try {
   assert.equal(customEstimate.rate_source, 'Custom Labour Rate');
   db.prepare("INSERT INTO attendance(labor_id,property_id,user_id,entry_date,attendance_value,created_by) VALUES(?,?,?,?,1,'Test')").run(customWorker.labor_id, id, p.user_id, day);
   db.prepare('INSERT INTO work_assignment(property_id,labor_id,work_date,work_activity_id,block_id,work_quantity,work_unit) VALUES(?,?,?,?,?,1,?)').run(id, customWorker.labor_id, day, activities[0].work_activity_id, newBlock.block_id, 'acre');
+  const customCompletion=(await workCompletionDay(env,id,day)).labours.find(l=>l.labor_id===customWorker.labor_id);
+  await saveWorkCompletion(env,id,{date:day,items:customCompletion.assignments.map(a=>({work_assignment_id:a.work_assignment_id,assignment_key:a.assignment_key,revision:a.revision,actual_quantity:1}))},who);
   const customPreview = await estatePreview(env, id, customWorker.labor_id, day);
   assert.equal(customPreview.total_earned, 110);
   await estateWrite(env, id, 'pay-selected', {

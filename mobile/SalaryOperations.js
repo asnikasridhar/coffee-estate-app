@@ -401,6 +401,8 @@ export function SalarySettlement({
     [query, setQuery] = useState(''),
     [error, setError] = useState(''),
     [saved, setSaved] = useState(false),
+    [editMode, setEditMode] = useState(false),
+    [paymentOptions, setPaymentOptions] = useState(false),
     [busy, setBusy] = useState(false),
     [method, setMethod] = useState('cash'),
     [paymentDate, setPaymentDate] = useState(today());
@@ -457,6 +459,7 @@ export function SalarySettlement({
     };
   }
   function open(row) {
+    setEditMode(false);
     setDetail(row);
     setForm(actuals(row));
     setSaved(false);
@@ -521,17 +524,17 @@ export function SalarySettlement({
       setDetail(null);
       setError('');
     } : null} />
-    {!detail ? <><DateField label="Settlement Date" value={day} onChange={setDay} /><View style={s.card}><Pair label="Labourers" value={data.rows.length} /><Pair label="Calculated / Pending / Paid" value={`${data.rows.filter(r => r.status === 'unpaid').length} / ${data.rows.filter(r => r.status === 'pending').length} / ${data.rows.filter(r => r.status === 'paid').length}`} /><Pair label="Paid net amount" value={cash(data.rows.filter(r => r.status === 'paid').reduce((n, r) => n + Number(r.settled_paid || 0), 0))} /><Pair label="Unpaid net payable" value={cash(data.rows.filter(r => r.status === 'unpaid').reduce((n, r) => n + r.settled_paid, 0))} /></View>{data.alerts.map((a, i) => <Notice key={i}>{a}</Notice>)}<Field label="Search labour" numeric={false} value={query} onChange={setQuery} /></> : null}
+    {!detail ? <><DateField label="Settlement Date" value={day} onChange={setDay}/><View style={s.summaryStrip}>{[['Labourers',data.rows.length],['Gross',cash(data.rows.reduce((n,r)=>n+Number(r.total_earned||0),0))],['Advance',cash(data.rows.reduce((n,r)=>n+Number(r.advance_paid||0),0))],['Payable',cash(data.rows.reduce((n,r)=>n+Number(r.settled_paid||0),0))]].map(([label,value])=><View style={{flex:1}} key={label}><Text style={s.muted}>{label}</Text><Text style={s.bold}>{value}</Text></View>)}</View>{data.rows.some(r=>r.status==='paid')?<Text style={s.muted}>Paid {cash(data.rows.filter(r=>r.status==='paid').reduce((n,r)=>n+Number(r.settled_paid||0),0))} ? Outstanding {cash(data.rows.filter(r=>r.status==='unpaid').reduce((n,r)=>n+Number(r.settled_paid||0),0))}</Text>:null}<Field label="Search labour" numeric={false} value={query} onChange={setQuery}/></> : null}
     {error ? <Notice error>{error}</Notice> : null}{busy ? <Text style={s.muted}>Loading...</Text> : null}
-    {!detail ? <>{!data.rows.length && !busy ? <Notice>No attended labourers for this date. Record attendance first.</Notice> : null}{data.rows.filter(r => r.labor_name.toLowerCase().includes(query.toLowerCase())).map(r => <View style={s.card} key={r.labor_id}><View style={s.row}>{r.status === 'unpaid' ? <TouchableOpacity accessibilityRole="checkbox" accessibilityLabel={`Select ${r.labor_name}`} accessibilityState={{
+    {!detail ? <>{!data.rows.length && !busy ? <Notice>No attended labourers for this date. Record attendance first.</Notice> : null}{data.rows.filter(r => r.labor_name.toLowerCase().includes(query.toLowerCase())).map(r => <View style={s.salaryListRow} key={r.labor_id}><View style={s.row}>{r.status === 'unpaid' ? <TouchableOpacity accessibilityRole="checkbox" accessibilityLabel={`Select ${r.labor_name}`} accessibilityState={{
             checked: selected.includes(r.labor_id)
           }} onPress={() => setSelected(ids => ids.includes(r.labor_id) ? ids.filter(id => id !== r.labor_id) : [...ids, r.labor_id])}><Text style={s.select}>{selected.includes(r.labor_id) ? '\u2611' : '\u2610'}</Text></TouchableOpacity> : null}<TouchableOpacity style={{
             flex: 1
-          }} onPress={() => open(r)}><Text style={s.bold}>{r.labor_name} (LT{String(r.labor_id).padStart(3, '0')})</Text><Text style={s.muted}>{r.attendance === .5 ? 'Half day' : r.attendance === 1 ? 'Full day' : 'Attendance needs review'} | {r.status === 'unpaid' ? 'Calculated / Unpaid' : r.status}</Text><Text style={s.muted}>{(r.work_charges || []).map(w => `${w.work_activity_name} ${w.quantity} ${w.unit}`).join(', ')}</Text>{r.error ? <Text style={s.error}>{r.error}</Text> : null}</TouchableOpacity><Text style={s.bold}>{cash(r.settled_paid)}</Text></View></View>)}
-      <Button title="Select all calculated" secondary disabled={busy} onPress={() => setSelected(data.rows.filter(r => r.status === 'unpaid').map(r => r.labor_id))} /><Pair label="Selected payable" value={cash(payableRows.reduce((n, r) => n + r.settled_paid, 0))} /><DateField label="Payment Date" value={paymentDate} onChange={setPaymentDate} /><Choice label="Payment Mode" value={method} onChange={setMethod} options={['cash', 'bank', 'upi'].map(id => ({
+          }} onPress={() => open(r)}><Text style={s.bold}>{r.labor_name} (LT{String(r.labor_id).padStart(3, '0')})</Text><Text style={s.muted}>{r.attendance === .5 ? 'Half day' : r.attendance === 1 ? 'Full day' : 'Attendance needs review'} | {r.status === 'unpaid' ? 'Calculated / Unpaid' : r.status}</Text><Text style={s.muted}>{(r.work_charges || []).length} work{(r.work_charges || []).length===1?'':'s'}</Text>{r.error ? <Text style={s.error}>{r.error}</Text> : null}</TouchableOpacity><Text style={s.bold}>{cash(r.settled_paid)}</Text></View></View>)}
+      <Button title="Select all calculated" secondary disabled={busy} onPress={() => setSelected(data.rows.filter(r => r.status === 'unpaid').map(r => r.labor_id))} /><Pair label="Selected labourers" value={payableRows.length} /><Pair label="Selected payable" value={cash(payableRows.reduce((n, r) => n + r.settled_paid, 0))} /><TouchableOpacity accessibilityRole="button" onPress={()=>setPaymentOptions(v=>!v)}><Text style={s.link}>Payment: {paymentDate} ? {method}</Text></TouchableOpacity>{paymentOptions?<><DateField label="Payment Date" value={paymentDate} onChange={setPaymentDate} /><Choice label="Payment Mode" value={method} onChange={setMethod} options={['cash', 'bank', 'upi'].map(id => ({
         id,
         name: id
-      }))} /><Button title="Mark Selected as Paid" disabled={busy || !payableRows.length} onPress={() => pay(payableRows)} />{exportPdf ? <Button title="Download PDF" secondary disabled={busy} onPress={async () => {
+      }))} /></>:null}<Button title="Mark Selected as Paid" disabled={busy || !payableRows.length} onPress={() => pay(payableRows)} />{exportPdf ? <Button title="Download PDF" secondary disabled={busy} onPress={async () => {
         try {
           const r = await request(`/api/payroll/salary-report?from=${day}&to=${day}`);
           await exportPdf(r);
@@ -539,20 +542,18 @@ export function SalarySettlement({
           setError(e.message);
         }
       }} /> : null}<Button title="Refresh calculations" secondary disabled={busy} onPress={load} />{onHistory ? <Button title="Payment history and reports" secondary onPress={onHistory} /> : null}
-    </> : <><View style={s.card}><Text style={s.section}>{detail.labor_name} | {day}</Text><Text style={s.muted}>{detail.attendance === .5 ? 'Half day' : detail.attendance === 1 ? 'Full day' : ''} | {detail.status}</Text>{detail.error ? <Notice error>{detail.error}</Notice> : null}{detail.messages?.map((m, i) => <Notice key={i}>{m}</Notice>)}
-      {Object.entries(componentLabels).map(([key, label]) => <View style={s.row} key={key}><Text style={s.muted}>{label}</Text><Text style={s.bold}>{cash(detail[key])}</Text>{detail.status === 'unpaid' ? <TouchableOpacity accessibilityLabel={`Edit ${label}`} onPress={() => setOverride({
-            component: key,
-            override_amount: detail[key],
-            reason: ''
-          })}><Text style={s.link}>Edit</Text></TouchableOpacity> : null}</View>)}
+    </> : <><View style={s.card}><Text style={s.section}>{detail.labor_name} | {day}</Text><Text style={s.muted}>{detail.attendance === .5 ? 'Half day' : detail.attendance === 1 ? 'Full day' : ''} | {detail.status}</Text>{detail.error ? <Notice error>{detail.error}</Notice> : null}{detail.messages?.length ? <Text style={s.muted}>{detail.messages.join(' ')}</Text> : null}
+      {Object.entries(componentLabels).filter(([key])=>Number(detail[key])!==0 && detail[key]!=null).map(([key, label]) => <View style={s.row} key={key}><Text style={s.muted}>{label}</Text><Text style={s.bold}>{cash(detail[key])}</Text></View>)}
       {detail.daily_rate_source ? <Text style={s.muted}>Base wage: {detail.daily_rate_source}</Text> : null}
-      {(detail.extras || []).map((e, i) => <Text key={`extra-${i}`} style={s.muted}>{e.name || 'OT / Extra'}: {e.quantity} {e.unit} x {cash(e.rate)} | {e.rate_source || 'Saved rate'}</Text>)}
-      {(detail.work_charges || []).map((w, i) => <Text style={s.muted} key={i}>{w.work_activity_name} | {w.block_name || 'Unallocated'} | {w.quantity} {w.unit} x {cash(w.rate)} = {cash(w.amount)} | {w.rate_source || 'Saved rate'}</Text>)}
+      {(detail.extras || []).filter(e=>Number(e.amount)>0).map((e, i) => <Text key={`extra-${i}`} style={s.muted}>{e.name || 'OT / Extra'}: {e.quantity} {e.unit} x {cash(e.rate)} | {e.rate_source || 'Saved rate'}</Text>)}
+      {(detail.work_charges || []).filter(w=>Number(w.amount)>0).map((w, i) => <Text style={s.muted} key={i}>{w.work_activity_name} | {w.block_name || 'Unallocated'} | {w.quantity} {w.unit} x {cash(w.rate)} = {cash(w.amount)} | {w.rate_source || 'Saved rate'}</Text>)}
       <Pair label="Earned" value={cash(detail.total_earned)} /><Pair label="Net payable" value={cash(detail.settled_paid)} />
       {detail.payment_date ? <Text style={s.muted}>Paid {detail.payment_date} | {detail.payment_method}</Text> : null}
       {(detail.override_audit || detail.overrides || []).map(o => <Text style={s.muted} key={o.override_id}>{componentLabels[o.component]}: {cash(o.original_amount)} to {cash(o.override_amount)} | {o.reason} | User {o.created_by} | {o.created_on}</Text>)}
       {(detail.recoveries || []).map(r => <Text style={s.muted} key={r.advance_id}>Advance #{r.advance_id}: {cash(r.recovered ?? r.amount)} | {r.reason || r.notes || ''}</Text>)}
     </View>
+    {detail.status==='unpaid'?<Button title="Salary exception" secondary onPress={()=>setEditMode(v=>!v)}/>:null}
+    {editMode?<Choice label="Override component" value={override?.component} options={Object.entries(componentLabels).map(([id,name])=>({id,name}))} onChange={key=>setOverride({component:key,override_amount:detail[key] || 0,reason:''})}/>:null}
     {override ? <View style={s.card}><Text style={s.section}>Override {componentLabels[override.component]}</Text><Pair label="Original calculation" value={cash(override.component === 'advance_paid' ? detail.original_advance_paid : detail.original_components?.[override.component])} /><Field label="Override Amount" value={override.override_amount} onChange={v => setOverride(f => ({
           ...f,
           override_amount: v
@@ -563,7 +564,7 @@ export function SalarySettlement({
           ...override,
           preview_key: detail.preview_key
         })} /><Button title="Cancel override" secondary onPress={() => setOverride(null)} /></View> : null}
-    {detail.status === 'unpaid' || detail.status === 'pending' ? <View style={s.card}><Text style={s.section}>Actual quantity / OT / Extras</Text>{data.setup.versions?.filter(v => v.category === 'seasonal' && v.effective_from <= day && v.effective_to >= day).map(v => <Notice key={v.rate_version_id}>{v.payload.name}: at least {v.payload.minimum_quantity} {v.payload.unit_name} earns one bonus of {cash(v.payload.bonus_amount)}. Enter the actual harvest below.</Notice>)}<Field label="Harvest quantity" value={form.quantity} onChange={field('quantity')} /><Choice label="Harvest unit" optional options={options(units, 'baseunit_id', 'baseunit_name')} value={form.unit_id} onChange={field('unit_id')} />
+    {editMode && detail.status === 'unpaid' ? <View style={s.card}><Text style={s.section}>Salary exception</Text>
       {(form.extras || []).map((e, i) => <View style={s.inset} key={i}><Choice label="OT / Extra type" options={options(types, 'overtime_type_id', 'name')} value={e.overtime_type_id} onChange={v => setForm(f => ({
             ...f,
             extras: f.extras.map((x, n) => n === i ? {
@@ -592,7 +593,7 @@ export function SalarySettlement({
         }, {
           id: 'regular',
           name: 'Use regular wage (including labour exception)'
-        }]} /><Field label="Notes" numeric={false} value={form.notes} onChange={field('notes')} /><Button title="Save actuals and recalculate" disabled={busy} onPress={() => write('settlement-input', {...form, quantity: form.quantity === '' ? 0 : form.quantity, custom_amount: form.custom_amount === '' ? 0 : form.custom_amount})} />{error ? <Notice error>{error}</Notice> : saved && !dirty ? <Notice>{detail.status === 'pending' ? `Actuals saved. Calculation needs attention: ${detail.error}` : 'Saved and recalculated. The breakdown above shows the updated amounts.'}</Notice> : null}<Button title="+ Add Advance" secondary onPress={() => setAdvance({
+        }]} /><Field label="Notes" numeric={false} value={form.notes} onChange={field('notes')} /><Button title="Save exception" disabled={busy} onPress={() => write('settlement-input', {...form, quantity: form.quantity === '' ? 0 : form.quantity, custom_amount: form.custom_amount === '' ? 0 : form.custom_amount})} />{error ? <Notice error>{error}</Notice> : saved && !dirty ? <Notice>{detail.status === 'pending' ? `Actuals saved. Calculation needs attention: ${detail.error}` : 'Saved and recalculated. The breakdown above shows the updated amounts.'}</Notice> : null}<Button title="+ Add Advance" secondary onPress={() => setAdvance({
           paid_date: day,
           amount: '',
           reason: '',
@@ -611,7 +612,7 @@ export function SalarySettlement({
       <DateField label="Payment Date" value={paymentDate} onChange={setPaymentDate} /><Choice label="Payment Mode" value={method} onChange={setMethod} options={['cash', 'bank', 'upi'].map(id => ({
           id,
           name: id
-        }))} />{dirty ? <Notice>Save actuals and recalculate before marking this salary as paid.</Notice> : null}<Button title="Mark as Paid" disabled={busy || dirty || detail.status !== 'unpaid'} onPress={() => pay([detail])} />
+        }))} />{dirty ? <Notice>Save the exception before marking this salary as paid.</Notice> : null}<Button title="Mark as Paid" disabled={busy || dirty || detail.status !== 'unpaid'} onPress={() => pay([detail])} />
     </View> : null}</>}
   </View>;
 }
@@ -702,6 +703,8 @@ export function SalaryReports({
   </View>;
 }
 const s = StyleSheet.create({
+  summaryStrip: {flexDirection:"row",backgroundColor:"#eef8ee",padding:12,borderRadius:8,marginBottom:12,gap:6},
+  salaryListRow: {backgroundColor:"white",paddingVertical:12,paddingHorizontal:8,borderBottomWidth:1,borderColor:"#e5e5df"},
   title: {
     fontSize: 24,
     fontWeight: '900',

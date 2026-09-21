@@ -1,3 +1,4 @@
+import WorkCompletion from './WorkCompletion';
 import { salaryReportHtml } from './salaryReportHtml';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -1197,6 +1198,7 @@ const legacyModuleGroups = [
     items: [
       "attendanceQuick",
       "setRates",
+      "workCompletion",
       "salarySettlement",
       "salaryReports",
       "rainfallQuick",
@@ -1253,6 +1255,7 @@ const labels = {
   settings: "Settings",
   finance: "Finance",
   setRates: "Set Rates",
+  workCompletion: "Work Completion",
   salarySettlement: "Salary Settlement",
   salaryReports: "Labour Reports",
 };
@@ -2768,7 +2771,7 @@ function Home({
         </TouchableOpacity>
       </View>
       <View style={styles.managementActions}>
-        {[...new Set([...favorites.filter((key) => HOME_MODULE_KEYS.includes(key)).slice(0, 8), "setRates", "salarySettlement"])].map((key) => (
+        {[...new Set([...favorites.filter((key) => HOME_MODULE_KEYS.includes(key)).slice(0, 8), "setRates", "workCompletion", "salarySettlement"])].map((key) => (
           <TouchableOpacity
             key={key}
             style={styles.managementAction}
@@ -3433,6 +3436,7 @@ function ModuleScreen({
             language={language}
           />
     );
+  if (moduleKey === "workCompletion") return <WorkCompletion key={propertyId} propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField}/>;
   if (moduleKey === "setRates") return <SetRates key={propertyId} propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField}/>;
   if (moduleKey === "salarySettlement") return <SalaryOperationsEntry key={propertyId} propertyId={propertyId} request={request}/>;
   if (moduleKey === "salaryReports") return <SalaryReports key={propertyId} propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField} exportPdf={exportSalaryPdf}/>;
@@ -6547,7 +6551,7 @@ function WorkAssignmentScreen({
   const [workQuantity,setWorkQuantity]=useState("");
   const [workUnit,setWorkUnit]=useState("acre");
   const [workRateHint,setWorkRateHint]=useState(null);
-  useEffect(()=>{let alive=true;setWorkRateHint(null);if(activityId)request(`/api/payroll/assignment-rate?${new URLSearchParams({date:workDate,work_activity_id:activityId,quantity:workQuantity,unit:workUnit,labor_id:workMode!=="quick"?String(selectedLabor?.labor_id||""):""})}`).then(r=>{if(alive)setWorkRateHint(r);}).catch(e=>{if(alive)setWorkRateHint({message:e.message});});return()=>{alive=false};},[propertyId,workDate,activityId,workQuantity,workUnit,workMode,selectedLabor?.labor_id]);
+  useEffect(()=>{let alive=true;setWorkRateHint(null);if(activityId)request(`/api/payroll/assignment-rate?${new URLSearchParams({date:workDate,work_activity_id:activityId,quantity:workQuantity,unit:workUnit,labor_id:workMode!=="quick"?String(selectedLabor?.labor_id||""):""})}`).then(r=>{if(alive){setWorkRateHint(r);if(["acre","tree","day","kg","bushel"].includes(r.input_unit))setWorkUnit(r.input_unit);else if(r.input_unit===null)setWorkQuantity("");}}).catch(e=>{if(alive)setWorkRateHint({message:e.message});});return()=>{alive=false};},[propertyId,workDate,activityId,workQuantity,workUnit,workMode,selectedLabor?.labor_id]);
   const [drafts, setDrafts] = useState([]);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [pendingEdit, setPendingEdit] = useState(null);
@@ -6990,8 +6994,8 @@ function WorkAssignmentScreen({
             t={t}
           />
           {workRateHint?<View style={styles.card}><Text style={styles.fieldLabel}>{workRateHint.rate!=null?`Rate: Rs ${workRateHint.rate} / ${workRateHint.unit} (${workRateHint.rate_source||"Estate Rate"})`:workRateHint.message}</Text>{workRateHint.estimated_amount!=null?<Text>Estimated work amount: Rs {workRateHint.estimated_amount}</Text>:workRateHint.rate!=null?<Text>{workRateHint.message||'Enter quantity in the configured unit for an estimate.'}</Text>:null}</View>:null}
-          <FieldText label="Completed work quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="For salary work charges"/>
-          <View style={styles.quickActivities}>{['acre','tree','day','kg','bushel'].map(unit=><TouchableOpacity key={unit} onPress={()=>setWorkUnit(unit)} style={[styles.quickActivity,workUnit===unit&&styles.quickActivityActive]}><Text>{unit}</Text></TouchableOpacity>)}</View>
+          {workRateHint?.input_unit!==null?<FieldText label="Assigned quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="If known in advance"/>:null}
+          {workRateHint?.input_unit?<Text style={styles.fieldLabel}>Unit: {workRateHint.input_unit}</Text>:workRateHint?.input_unit===null?null:<View style={styles.quickActivities}>{['acre','tree','day','kg','bushel'].map(unit=><TouchableOpacity key={unit} onPress={()=>setWorkUnit(unit)} style={[styles.quickActivity,workUnit===unit&&styles.quickActivityActive]}><Text>{unit}</Text></TouchableOpacity>)}</View>}
           <FieldText
             label={`${copy.notes} (${t("optional")})`}
             value={notes}
@@ -7254,8 +7258,8 @@ function WorkAssignmentScreen({
                 t={t}
               />
               {workRateHint?<View style={styles.card}><Text style={styles.fieldLabel}>{workRateHint.rate!=null?`Rate: Rs ${workRateHint.rate} / ${workRateHint.unit} (${workRateHint.rate_source||"Estate Rate"})`:workRateHint.message}</Text>{workRateHint.estimated_amount!=null?<Text>Estimated work amount: Rs {workRateHint.estimated_amount}</Text>:workRateHint.rate!=null?<Text>{workRateHint.message||'Enter quantity in the configured unit for an estimate.'}</Text>:null}</View>:null}
-          <FieldText label="Completed work quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="For salary work charges"/>
-          <View style={styles.quickActivities}>{['acre','tree','day','kg','bushel'].map(unit=><TouchableOpacity key={unit} onPress={()=>setWorkUnit(unit)} style={[styles.quickActivity,workUnit===unit&&styles.quickActivityActive]}><Text>{unit}</Text></TouchableOpacity>)}</View>
+          {workRateHint?.input_unit!==null?<FieldText label="Assigned quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="If known in advance"/>:null}
+          {workRateHint?.input_unit?<Text style={styles.fieldLabel}>Unit: {workRateHint.input_unit}</Text>:workRateHint?.input_unit===null?null:<View style={styles.quickActivities}>{['acre','tree','day','kg','bushel'].map(unit=><TouchableOpacity key={unit} onPress={()=>setWorkUnit(unit)} style={[styles.quickActivity,workUnit===unit&&styles.quickActivityActive]}><Text>{unit}</Text></TouchableOpacity>)}</View>}
           <FieldText
                 label={`${copy.notes} (${t("optional")})`}
                 value={notes}

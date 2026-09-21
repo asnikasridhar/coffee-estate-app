@@ -261,59 +261,18 @@ test('information button explains settlement cycle and stops parent navigation',
   expect(alert.mock.calls[0][1]).toContain('does not set the wage');
 });
 
-test('season bonus actuals preselect the active unit, recalculate, and keep the refreshed values on reopen', async () => {
-  const seasonalSetup = {...setup, versions:[{rate_version_id:7,category:'seasonal',effective_from:'2020-01-01',effective_to:'2099-12-31',payload:{name:'Coffee Harvest',unit_id:1,unit_name:'Bushel',minimum_quantity:3,bonus_amount:50}}]};
-  let row={...workers[0],fixed_earned:150,work_earned:60,variable_earned:0,total_earned:210,settled_paid:210,input:{}};
-  const request=jest.fn(async(url,config)=>{
-    if(config?.method==='POST') {
-      const input=JSON.parse(config.body);
-      expect(input.unit_id).toBe(1);
-      expect(input.quantity).toBe('5');
-      expect(input.custom_amount).toBe(0);
-      row={...row,input,quantity:5,variable_earned:50,total_earned:260,settled_paid:260,preview_key:'recalculated'};
-      return {ok:true};
-    }
-    return {rows:[row],alerts:[],setup:seasonalSetup};
-  });
+test('normal salary list and optional details do not ask for completion or expose zero components',async()=>{
+  const row={...workers[0],fixed_earned:120,work_earned:50,variable_earned:0,overtime_earned:0,custom_earned:0,total_earned:170,advance_paid:20,settled_paid:150};
+  const request=jest.fn(async()=>({rows:[row],alerts:['Rate configuration info'],setup}));
   const ui=await render(<SalarySettlement propertyId={1} request={request} Choice={Choice} DateField={DateField}/>);
-  await fireEvent.press(await ui.findByText('Best Labour (LT001)'));
-  expect(ui.getByText(/at least 3 Bushel earns one bonus/)).toBeTruthy();
-  await fireEvent.changeText(ui.getByLabelText('Harvest quantity'),'5');
-  await fireEvent.changeText(ui.getByLabelText('Other / Custom amount'),'');
-  expect(ui.getByText('Save actuals and recalculate before marking this salary as paid.')).toBeTruthy();
-  await fireEvent.press(ui.getByText('Save actuals and recalculate'));
-  await waitFor(()=>expect(ui.getByText('Saved and recalculated. The breakdown above shows the updated amounts.')).toBeTruthy());
-  expect(ui.getAllByText('₹260').length).toBeGreaterThan(0);
-  expect(ui.queryByText('Save actuals and recalculate before marking this salary as paid.')).toBeNull();
-  await fireEvent.press(ui.getByLabelText('Back'));
+  await ui.findByText('Best Labour (LT001)');
+  expect(ui.queryByText('Rate configuration info')).toBeNull();
+  expect(ui.queryByText('Daily wage source')).toBeNull();
   await fireEvent.press(ui.getByText('Best Labour (LT001)'));
-  expect(ui.getByLabelText('Harvest quantity').props.value).toBe('5');
-  expect(ui.getAllByText('₹260').length).toBeGreaterThan(0);
-});
-
-test('failed recalculation shows the API error beside save and preserves entered actuals for retry', async () => {
-  const request=jest.fn(async(url,config)=>{
-    if(config?.method==='POST')throw new Error('Select Bushel as the harvest unit for Coffee Harvest');
-    return {rows:workers,alerts:[],setup};
-  });
-  const ui=await render(<SalarySettlement propertyId={1} request={request} Choice={Choice} DateField={DateField}/>);
-  await fireEvent.press(await ui.findByText('Best Labour (LT001)'));
-  await fireEvent.changeText(ui.getByLabelText('Harvest quantity'),'7');
-  await fireEvent.press(ui.getByText('Save actuals and recalculate'));
-  await waitFor(()=>expect(ui.getAllByText('Select Bushel as the harvest unit for Coffee Harvest').length).toBe(2));
-  expect(ui.getByLabelText('Harvest quantity').props.value).toBe('7');
-  expect(ui.queryByText(/Saved and recalculated/)).toBeNull();
-});
-
-test('saved actuals that still have a missing work rate clearly show pending calculation', async () => {
-  let written=false;
-  const request=jest.fn(async(url,config)=>{
-    if(config?.method==='POST'){written=true;return {ok:true};}
-    return {rows:[written?{...workers[0],status:'pending',error:'No active Pepper Tying rate found',input:{quantity:3}}:workers[0]],alerts:[],setup};
-  });
-  const ui=await render(<SalarySettlement propertyId={1} request={request} Choice={Choice} DateField={DateField}/>);
-  await fireEvent.press(await ui.findByText('Best Labour (LT001)'));
-  await fireEvent.changeText(ui.getByLabelText('Harvest quantity'),'3');
-  await fireEvent.press(ui.getByText('Save actuals and recalculate'));
-  await waitFor(()=>expect(ui.getByText('Actuals saved. Calculation needs attention: No active Pepper Tying rate found')).toBeTruthy());
+  for(const zero of ['Seasonal bonus','OT / Extra','Other / Custom'])expect(ui.queryByText(zero)).toBeNull();
+  expect(ui.queryByLabelText('Harvest quantity')).toBeNull();
+  expect(ui.queryByLabelText('Edit Base wage')).toBeNull();
+  await fireEvent.press(ui.getByText('Salary exception'));
+  expect(ui.getByText('Override component')).toBeTruthy();
+  expect(ui.queryByLabelText('Harvest quantity')).toBeNull();
 });

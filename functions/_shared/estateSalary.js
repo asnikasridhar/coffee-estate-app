@@ -15,8 +15,8 @@ function date(v) {
   return v;
 }
 function amount(v, label, optional = false) {
-  if (optional && (v == null || v === '')) return null;
-  if (v == null || v === '' || !Number.isFinite(Number(v)) || Number(v) < 0) fail(`${label} must be a non-negative number`);
+  if (optional && (v == null || (typeof v === 'string' && v.trim() === ''))) return null;
+  if (v == null || (typeof v === 'string' && v.trim() === '') || !Number.isFinite(Number(v)) || Number(v) < 0) fail(`${label} must be a non-negative number`);
   return money(v);
 }
 function quantity(v, label) {
@@ -180,13 +180,13 @@ export function calculateEstateDay({
       category: 'work',
       typeId: a.work_activity_id
     });
-    const r = resolved.value == null ? null : {
-      rate: resolved.value,
-      unit: resolved.unit
+    const r = resolved.value == null && a.rate_override == null ? null : {
+      rate: a.rate_override ?? resolved.value,
+      unit: resolved.unit || a.actual_unit
     };
     if (!r) fail(`No active ${a.work_activity_name} rate found for ${day}`);
     if (!['work', 'day'].includes(r.unit) && (a.work_quantity == null || a.work_unit !== r.unit)) fail(`Record ${r.unit} quantity for ${a.work_activity_name} in Work Assignment`);
-    const units = r.unit === 'work' ? 1 : r.unit === 'day' ? fraction : quantity(a.work_quantity, 'Work quantity');
+    const units = r.unit === 'work' ? (a.completed_quantity == null ? 1 : Number(a.completed_quantity > 0)) : r.unit === 'day' ? fraction * (a.completed_quantity == null ? 1 : Number(a.completed_quantity > 0)) : quantity(a.work_quantity, 'Work quantity');
     return {
       work_assignment_id: a.work_assignment_id,
       work_activity_id: a.work_activity_id,
@@ -198,7 +198,8 @@ export function calculateEstateDay({
       rate: r.rate,
       amount: money(units * r.rate),
       rate_version_id: resolved.version?.rate_version_id || null,
-      rate_source: resolved.source,
+      rate_source: a.rate_override != null ? 'Settlement Override' : resolved.source,
+      completion: a.completion || null,
       exception_id: resolved.exception?.exception_id || null,
       exception_snapshot: resolved.exception
     };
@@ -296,7 +297,7 @@ async function legacyPaid(env, p, id, day) {
     snapshot
   };
 }
-export async function estatePreview(env, p, id, day, versions) {
+export async function estatePreview(env, p, id, day, versions, completionContext) {
   date(day);
   const labor = await person(env, p, id);
   const paid = await first(env, 'SELECT * FROM estate_salary_payment WHERE property_id=? AND labor_id=? AND work_date=?', p, Number(id), day);
@@ -316,14 +317,26 @@ export async function estatePreview(env, p, id, day, versions) {
   if (records.length !== 1) fail(records.length ? 'Duplicate attendance; correct Attendance first' : 'Attendance is missing');
   const inputRow = await first(env, 'SELECT * FROM estate_salary_input WHERE property_id=? AND labor_id=? AND work_date=?', p, Number(id), day);
   const oldEntry = await first(env, 'SELECT d.*,COALESCE(e.custom_amount,0) custom_amount FROM payroll_daily d LEFT JOIN payroll_daily_extra e ON e.payroll_daily_id=d.payroll_daily_id WHERE property_id=? AND labor_id=? AND work_date=?', p, Number(id), day);
-  const input = inputRow ? JSON.parse(inputRow.input_json) : {
+  let input = inputRow ? JSON.parse(inputRow.input_json) : {
     quantity: oldEntry?.quantity || 0,
     unit_id: oldEntry?.unit_id,
     custom_amount: oldEntry?.custom_amount || 0,
     notes: oldEntry?.notes || '',
     extras: []
   };
-  const assignments = await all(env, `SELECT w.*,a.work_activity_name,b.block_name FROM work_assignment w JOIN work_activity a ON a.work_activity_id=w.work_activity_id LEFT JOIN blocks b ON b.block_id=w.block_id WHERE w.property_id=? AND w.labor_id=? AND date(w.work_date)=? ORDER BY w.work_assignment_id`, p, Number(id), day);
+  const completionSetup = completionContext?.setup || await estateRates(env,p);
+  const actualRows = (completionContext?.rows || await completionRows(env,p,day,completionSetup)).filter(a=>a.labor_id===Number(id));
+  const missing = actualRows.find(a=>a.actual_quantity===null);
+  if(missing)fail(`Work completion pending: ${missing.work_activity_name}`);
+  const assignments = actualRows.map(a=>({...a,work_quantity:a.actual_quantity,work_unit:normalUnit(a.actual_unit),
+    completed_quantity:a.actual_quantity,completion:{actual_quantity:a.actual_quantity,unit:a.actual_unit,revision:a.revision,rate_override:a.rate_override,reason:a.reason,notes:a.completion_notes}}));
+  const harvestRows=actualRows.filter(a=>a.is_harvest);
+  const activeSeason=pick(completionSetup.versions,'seasonal',day);
+  if(harvestRows.length) {
+    if(activeSeason?.payload.bonus_amount && harvestRows.some(a=>a.actual_quantity>0 && normalUnit(a.unit)!==normalUnit(activeSeason.payload.unit_name)))fail('Harvest completion unit differs from the seasonal bonus unit. Check Set Rates.');
+    input={...input,quantity:harvestRows.reduce((n,a)=>n+a.actual_quantity,0),unit_id:activeSeason?.payload.unit_id || null};
+  }
+
   const audit = await all(env, 'SELECT * FROM estate_salary_override WHERE property_id=? AND labor_id=? AND work_date=? ORDER BY override_id DESC', p, Number(id), day);
   const overrides = audit.filter((o, i) => audit.findIndex(x => x.component === o.component) === i);
   const rates = versions || (await estateRates(env, p)).versions;
@@ -421,11 +434,12 @@ export async function estatePreview(env, p, id, day, versions) {
 export async function estateDay(env, p, day) {
   date(day);
   const setup = await estateRates(env, p);
+  const completionContext={setup,rows:await completionRows(env,p,day,setup)};
   const ids = await all(env, `SELECT DISTINCT labor_id FROM attendance WHERE property_id=? AND date(entry_date)=? AND attendance_value>0 UNION SELECT labor_id FROM estate_salary_payment WHERE property_id=? AND work_date=? UNION SELECT labor_id FROM finance_wage_period WHERE property_id=? AND period_start<=? AND period_end>=? AND status IN ('paid','finalized')`, p, day, p, day, p, day, day);
   const rows = [];
   for (const l of ids) {
     try {
-      rows.push(await estatePreview(env, p, l.labor_id, day, setup.versions));
+      rows.push(await estatePreview(env, p, l.labor_id, day, setup.versions, completionContext));
     } catch (e) {
       const worker = await person(env, p, l.labor_id);
       const saved = await first(env, 'SELECT input_json FROM estate_salary_input WHERE property_id=? AND labor_id=? AND work_date=?', p, l.labor_id, day);
@@ -696,8 +710,12 @@ export async function assignmentEstimate(env, p, b) {
     message: `No active work rate found for ${day}`
   };
   const quantity = rate.unit === 'work' ? 1 : rate.unit === 'day' ? null : b.quantity !== '' && b.quantity != null && b.unit === rate.unit ? amount(b.quantity, 'Quantity') : null;
+  const isHarvest=/harvest|pick(?:ing)?|pluck/i.test(setup.activities.find(a=>a.work_activity_id===Number(b.work_activity_id))?.work_activity_name || '');
+  const seasonal=pick(setup.versions,'seasonal',day);
+  const inputUnit=['work','day'].includes(rate.unit) ? (isHarvest && seasonal ? normalUnit(seasonal.payload.unit_name) : null) : rate.unit;
   return {
     ...rate,
+    input_unit:inputUnit,
     rate_version_id: version?.rate_version_id || null,
     rate_source: resolved.source,
     exception_id: resolved.exception?.exception_id || null,
@@ -752,4 +770,100 @@ export async function salaryReport(env, p, b) {
     advances,
     note: 'Paid amounts use frozen snapshots. Unpaid amounts are provisional. Legacy period totals are included by period end date.'
   };
+}
+
+// Completion reuses assignment identity and resolves units/rates centrally.
+async function completionRows(env, p, day, setup) {
+  const rows = await all(env, `SELECT a.*,l.name labor_name,w.work_activity_name,b.block_name,
+    c.actual_quantity,c.actual_unit,c.rate_override,c.reason,c.notes completion_notes,c.revision,
+    json_array(a.work_assignment_id,a.property_id,a.labor_id,a.work_date,a.work_activity_id,a.block_id,a.work_quantity,a.work_unit) assignment_key
+    FROM work_assignment a JOIN labors l ON l.labor_id=a.labor_id
+    JOIN work_activity w ON w.work_activity_id=a.work_activity_id LEFT JOIN blocks b ON b.block_id=a.block_id
+    LEFT JOIN work_completion c ON c.work_assignment_id=a.work_assignment_id
+    WHERE a.property_id=? AND date(a.work_date)=? ORDER BY l.name,a.labor_id,a.work_assignment_id`, p, day);
+  const seasonal = pick(setup.versions, 'seasonal', day);
+  return rows.map(a => {
+    const resolved = resolveRate({versions:setup.versions,exceptions:setup.exceptions,propertyId:p,laborId:a.labor_id,day,category:'work',typeId:a.work_activity_id});
+    const isHarvest = /harvest|pick(?:ing)?|pluck/i.test(a.work_activity_name);
+    const rateUnit = resolved.unit || a.work_unit || 'work';
+    const harvestUnit = isHarvest && ['work','day'].includes(rateUnit) ? (a.work_unit || seasonal?.payload.unit_name) : null;
+    const unit = a.actual_unit || harvestUnit || rateUnit;
+    const fixed = ['work','day'].includes(unit);
+    return {...a,unit,fixed,is_harvest:isHarvest,rate:resolved.value,rate_unit:rateUnit,rate_source:resolved.source,
+      assigned_quantity: fixed ? 1 : (a.work_unit && normalUnit(a.work_unit)===normalUnit(unit) ? a.work_quantity : null),
+      actual_quantity:a.actual_quantity ?? null,revision:a.revision || 0};
+  });
+}
+const normalUnit = value => {
+  const unit=String(value || '').trim().toLowerCase();
+  return ({bushal:'bushel',bushals:'bushel',bushels:'bushel',kilogram:'kg',kilograms:'kg',acres:'acre',trees:'tree',hours:'hour'})[unit] || unit;
+};
+export async function workCompletionDay(env,p,day) {
+  date(day);
+  const setup=await estateRates(env,p), rows=await completionRows(env,p,day,setup);
+  const inputs=await all(env,'SELECT labor_id,input_json FROM estate_salary_input WHERE property_id=? AND work_date=?',p,day);
+  const attended=await all(env,'SELECT DISTINCT l.labor_id,l.name FROM attendance a JOIN labors l ON l.labor_id=a.labor_id WHERE a.property_id=? AND date(a.entry_date)=? AND a.attendance_value>0 ORDER BY l.name',p,day);
+  const paidIds=await all(env,"SELECT labor_id FROM estate_salary_payment WHERE property_id=? AND work_date=? UNION SELECT labor_id FROM finance_wage_period WHERE property_id=? AND ? BETWEEN period_start AND period_end AND status IN ('paid','finalized')",p,day,p,day);
+  const labours=[];
+  for(const labor of setup.labours) {
+    const assignments=rows.filter(a=>a.labor_id===labor.labor_id);
+    const input=JSON.parse(inputs.find(i=>i.labor_id===labor.labor_id)?.input_json || '{}');
+    if(!assignments.length && !input.extras?.length)continue;
+    const paid=paidIds.some(r=>r.labor_id===labor.labor_id);
+    labours.push({...labor,assignments,extras:input.extras || [],input_key:JSON.stringify(input),paid:!!paid,
+      completed:!!paid || assignments.every(a=>a.actual_quantity!==null)});
+  }
+  return {date:day,labours,setup:{activities:setup.activities,overtimeTypes:setup.overtimeTypes,attended:attended.filter(l=>!paidIds.some(r=>r.labor_id===l.labor_id)).map(l=>({...l,input_key:JSON.stringify(JSON.parse(inputs.find(i=>i.labor_id===l.labor_id)?.input_json || '{}'))}))},
+    summary:{labourers:labours.length,completed:labours.filter(l=>l.completed).length,pending:labours.filter(l=>!l.completed).length}};
+}
+export async function saveWorkCompletion(env,p,b,who) {
+  const day=date(b.date),setup=await estateRates(env,p),rows=await completionRows(env,p,day,setup);
+  if(!Array.isArray(b.items) || b.items.length>500)fail('Invalid completion list');
+  const statements=[],seen=new Set();
+  for(const item of b.items) {
+    const a=rows.find(r=>r.work_assignment_id===Number(item.work_assignment_id));
+    if(!a || seen.has(a.work_assignment_id))fail('Invalid or duplicate assignment');
+    seen.add(a.work_assignment_id);
+    await unlocked(env,p,a.labor_id,day);
+    if(item.assignment_key!==a.assignment_key || Number(item.revision)!==a.revision)fail('Work completion changed elsewhere. Refresh before saving.',409);
+    const actual=quantity(item.actual_quantity,'Actual quantity');
+    if(a.fixed && ![0,1].includes(actual))fail('Confirm Done or Not done for fixed work');
+    const override=amount(item.rate_override,'Override rate',true),reason=String(item.reason || '').trim();
+    if(override!==null && !reason)fail('A reason is required for a different rate');
+    statements.push(env.DB.prepare(`INSERT INTO work_completion(work_assignment_id,actual_quantity,actual_unit,rate_override,reason,notes,revision,assignment_key,modified_by)
+      VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(work_assignment_id) DO UPDATE SET actual_quantity=excluded.actual_quantity,actual_unit=excluded.actual_unit,rate_override=excluded.rate_override,reason=excluded.reason,notes=excluded.notes,revision=excluded.revision,assignment_key=excluded.assignment_key,modified_by=excluded.modified_by,modified_on=CURRENT_TIMESTAMP`)
+      .bind(a.work_assignment_id,actual,a.unit,override,reason,String(item.notes || ''),a.revision+1,a.assignment_key,who));
+  }
+  const extrasSeen=new Set();
+  for(const entry of b.labour_extras || []) {
+    const id=Number(entry.labor_id);
+    if(extrasSeen.has(id))fail('Labour extras entered twice');
+    extrasSeen.add(id);await person(env,p,id);await unlocked(env,p,id,day);
+    if(!await first(env,'SELECT 1 FROM attendance WHERE property_id=? AND labor_id=? AND date(entry_date)=? AND attendance_value>0',p,id,day))fail('Record attendance before adding OT');
+    const saved=await first(env,'SELECT input_json FROM estate_salary_input WHERE property_id=? AND labor_id=? AND work_date=?',p,id,day);
+    const input=JSON.parse(saved?.input_json || '{}');
+    if(entry.input_key!==JSON.stringify(input))fail('Extras changed elsewhere. Refresh before saving.',409);
+    if(!Array.isArray(entry.extras) || entry.extras.length>50)fail('Invalid extras');
+    const types=new Set();
+    const extras=entry.extras.map(e=>{
+      const type=setup.overtimeTypes.find(t=>t.overtime_type_id===Number(e.overtime_type_id));
+      if(!type || types.has(type.overtime_type_id))fail('Invalid or duplicate OT type');
+      types.add(type.overtime_type_id);
+      const value=quantity(e.quantity,'Extra quantity');
+      if(type.unit==='hour' && value>24)fail('Overtime hours cannot exceed 24');
+      return {overtime_type_id:type.overtime_type_id,quantity:value};
+    });
+    statements.push(env.DB.prepare(`INSERT INTO estate_salary_input(property_id,labor_id,work_date,input_json,modified_by) VALUES(?,?,?,?,?) ON CONFLICT(property_id,labor_id,work_date) DO UPDATE SET input_json=excluded.input_json,modified_by=excluded.modified_by,modified_on=CURRENT_TIMESTAMP`).bind(p,id,day,JSON.stringify({...input,extras}),who));
+  }
+  if(statements.length)await env.DB.batch(statements);
+  return {ok:true};
+}
+export async function addCompletionWork(env,p,b,who) {
+  const day=date(b.date),id=Number(b.labor_id),type=Number(b.work_activity_id);
+  await person(env,p,id);await unlocked(env,p,id,day);
+  if(!await first(env,'SELECT 1 FROM attendance WHERE property_id=? AND labor_id=? AND date(entry_date)=? AND attendance_value>0',p,id,day))fail('Record attendance before adding work');
+  if(!await first(env,'SELECT 1 FROM work_activity WHERE property_id=? AND work_activity_id=?',p,type))fail('Select work for this estate');
+  if(await first(env,'SELECT 1 FROM work_assignment WHERE property_id=? AND labor_id=? AND date(work_date)=? AND work_activity_id=? AND block_id IS NULL',p,id,day,type))fail('This work is already listed for the labourer');
+  const result=await env.DB.prepare('INSERT INTO work_assignment(property_id,labor_id,work_date,work_activity_id,notes) VALUES(?,?,?,?,?)').bind(p,id,day,type,'Extra work').run();
+  return {work_assignment_id:result.meta.last_row_id};
 }

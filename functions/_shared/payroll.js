@@ -42,9 +42,10 @@ export function calculateDay(attendance, entry, rule, assignments = []) {
     if (rate.unit === 'day' && seen.has(rate.work_activity_id)) continue;
     seen.add(rate.work_activity_id);
     if (rate.unit !== 'day' && (assignment.work_quantity == null || assignment.work_unit !== rate.unit)) fail(`Record ${rate.unit} quantity for ${assignment.work_activity_name} in Work Assignment`);
-    const units = rate.unit === 'day' ? fraction : numeric(assignment.work_quantity, 'Work quantity');
+    const units = rate.unit === 'day' ? fraction * (assignment.completed_quantity == null ? 1 : Number(assignment.completed_quantity > 0)) : numeric(assignment.work_quantity, 'Work quantity');
     work.push({
       work_assignment_id: assignment.work_assignment_id,
+      completion: assignment.completion || null,
       work_activity_name: assignment.work_activity_name,
       quantity: units,
       unit: rate.unit,

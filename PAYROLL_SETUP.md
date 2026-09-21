@@ -153,6 +153,38 @@ For a local database that has not received 0024, from `server`:
 node src/run-migration.js ../migrations/0024_salary_simple_flow.sql
 ```
 
+## Work Completion (0027)
+
+Work Assignment quantities are now planned quantities. Work Completion records
+actuals separately against the existing assignment ID. Blank means pending; zero
+means confirmed no work. Salary Settlement uses completed actuals and derives
+harvest bonuses from them. Existing paid snapshots remain unchanged. No planned
+quantity is automatically copied into completion.
+
+Apply `0027_work_completion.sql` after 0025 and 0026, before deploying the API and
+updated mobile app. Local SQLite received 0027 with a backup under
+`.tmp/pre-work-completion-*.sqlite`; its `schema_migrations` entry is recorded.
+Remote databases have not received 0027 during this implementation.
+
+For a local database that has not received 0027, run from `server`:
+
+```powershell
+node src/run-migration.js ../migrations/0027_work_completion.sql
+```
+
+For DEV, first verify that only 0027 is pending. Use a file import to apply the
+trigger-heavy SQL and its ledger entry together (do not run this if 0027 is
+already installed):
+
+```powershell
+npx wrangler d1 migrations list dev-coffee-estate-db --config wrangler-dev.toml --remote
+New-Item -ItemType Directory -Force .tmp | Out-Null
+$completionSql = (Get-Content migrations/d1/0027_work_completion.sql -Raw) + "`nINSERT INTO d1_migrations(name) VALUES ('0027_work_completion.sql');`n"
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) '.tmp/completion-migration-d1.sql'), $completionSql)
+npx wrangler d1 execute dev-coffee-estate-db --config wrangler-dev.toml --remote --file .tmp/completion-migration-d1.sql
+npx wrangler d1 migrations list dev-coffee-estate-db --config wrangler-dev.toml --remote
+```
+
 ## Versioned rates and labour exceptions (0025–0026)
 
 Apply these migrations before using the new API and mobile screens. On 2026-09-21,

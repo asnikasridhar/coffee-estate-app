@@ -2,7 +2,7 @@ const fs=require('fs'),path=require('path'),Database=require('better-sqlite3');
 const root=path.resolve(__dirname,'../..');
 const source=new Database(path.join(root,'server/data/coffee-estate.sqlite'),{readonly:true}),db=new Database(':memory:');
 db.pragma('foreign_keys = OFF'); // Schema-only parser fixture; no estate data is copied.
-const files=['0025_estate_rate_versions.sql','0026_labour_rate_exceptions.sql'],sql=files.map(f=>fs.readFileSync(path.join(root,'migrations/d1',f),'utf8'));
+const files=['0025_estate_rate_versions.sql','0026_labour_rate_exceptions.sql','0027_work_completion.sql'],sql=files.map(f=>fs.readFileSync(path.join(root,'migrations/d1',f),'utf8'));
 const added=new Set(sql.flatMap(s=>[...s.matchAll(/CREATE TABLE (\w+)/g)].map(m=>m[1])));
 for(const row of source.prepare("SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all())if(!added.has(row.name))db.exec(row.sql);
 for(let i=0;i<files.length;i++){require('node:assert/strict').equal(sql[i],fs.readFileSync(path.join(root,'migrations',files[i]),'utf8'));db.exec(sql[i]);console.log(files[i]+': fresh schema OK');}

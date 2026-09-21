@@ -1,4 +1,4 @@
-import { estateRates, estateDay, estateWrite, assignmentEstimate, salaryReport, rateContext } from '../../../functions/_shared/estateSalary.js';
+import { workCompletionDay, saveWorkCompletion, addCompletionWork, estateRates, estateDay, estateWrite, assignmentEstimate, salaryReport, rateContext } from '../../../functions/_shared/estateSalary.js';
 import { Router } from 'express';
 import { db } from '../db.js';
 import { requireScopedProperty } from '../middleware/context.js';
@@ -14,6 +14,7 @@ router.get('/:action', asyncHandler(async (req, res) => {
   if (!propertyId) return res.status(400).json({
     error: 'Select a property first'
   });
+  if (req.params.action === 'work-completion') return res.json(await workCompletionDay(env,propertyId,req.query.date));
   if (req.params.action === 'rate-context') return res.json(await rateContext(env,propertyId,req.query));
   if (req.params.action === 'rates') return res.json(await estateRates(env, propertyId));
   if (req.params.action === 'settlement-day') return res.json(await estateDay(env, propertyId, req.query.date));
@@ -33,6 +34,8 @@ router.post('/:action', asyncHandler(async (req, res) => {
   if (!propertyId) return res.status(400).json({
     error: 'Select a property first'
   });
+  if (req.params.action === 'work-completion') return res.status(201).json(await saveWorkCompletion(env,propertyId,req.body,String(userId)));
+  if (req.params.action === 'completion-extra-work') return res.status(201).json(await addCompletionWork(env,propertyId,req.body,String(userId)));
   if (['labour-exception','rate-version','overtime-type','pay-selected','settlement-input','settlement-override','settlement-advance'].includes(req.params.action)) return res.status(201).json(await estateWrite(env, propertyId, req.params.action, req.body, String(userId)));
   res.status(201).json(await payrollWrite(env, propertyId, req.params.action, req.body, String(userId)));
 }));
