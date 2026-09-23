@@ -1,3 +1,5 @@
+import WorkCompletion from './WorkCompletion';
+import { salaryReportHtml } from './salaryReportHtml';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -29,8 +31,11 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
 import FertilizerManagement from "./FertilizerManagement";
-import FinanceModule from "./FinanceModule";
+import FinanceModule, { Choice as FinanceChoice, DateField as FinanceDateField } from "./FinanceModule";
+import { SetRates, SalarySettlement, SalaryReports, salaryReportTables } from "./SalaryOperations";
 import AppIcon from "./src/components/AppIcon";
+import EnvironmentWatermark from "./src/components/EnvironmentWatermark";
+import { APP_ENVIRONMENT } from "./src/config/environment";
 import { colors as themeColors } from "./src/theme/tokens";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -43,10 +48,11 @@ const WEATHER_API_KEY = process.env.EXPO_PUBLIC_WEATHER_API_KEY || "";
 // Set this Expo public variable to "true" when the feature is ready to return.
 const WEATHER_FEATURE_ENABLED =
   process.env.EXPO_PUBLIC_ENABLE_WEATHER === "true";
-const PRODUCTION_API_BASE = "https://coffee-estate-app.pages.dev/api";
 const FAVORITES_KEY = "estate-app-favorite-modules";
 const LANGUAGE_KEY = "javaterrain-language";
-const LOGIN_MEMORY_KEY = "javaterrain-remembered-login";
+const LOGIN_MEMORY_KEY = APP_ENVIRONMENT.environment === "prod"
+  ? "javaterrain-remembered-login"
+  : `javaterrain-remembered-login-${APP_ENVIRONMENT.environment}`;
 const LANGUAGES = [
   ["en", "English"],
   ["kn", "ಕನ್ನಡ"],
@@ -1191,6 +1197,10 @@ const legacyModuleGroups = [
     icon: "📝",
     items: [
       "attendanceQuick",
+      "setRates",
+      "workCompletion",
+      "salarySettlement",
+      "salaryReports",
       "rainfallQuick",
       "yieldQuick",
       "expenses",
@@ -1244,6 +1254,10 @@ const labels = {
   notifications: "Notifications",
   settings: "Settings",
   finance: "Finance",
+  setRates: "Set Rates",
+  workCompletion: "Work Completion",
+  salarySettlement: "Salary Settlement",
+  salaryReports: "Labour Reports",
 };
 
 const resourceOf = {
@@ -1735,8 +1749,7 @@ function friendlyError(error) {
 }
 
 export default function App() {
-  const defaultApiBase = process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_BASE;
-  const apiBase = defaultApiBase;
+  const apiBase = APP_ENVIRONMENT.apiBase;
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState("");
   const [propertyId, setPropertyId] = useState("");
@@ -1930,6 +1943,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <EnvironmentWatermark/>
       <StatusBar
         barStyle="dark-content"
         backgroundColor="#f5eee3"
@@ -2016,6 +2030,7 @@ export default function App() {
         {screen === "module" && (
           <ModuleScreen
             moduleKey={activeModule}
+            openModule={openModule}
             user={user}
             propertyId={propertyId}
             data={data}
@@ -2071,6 +2086,7 @@ function Login({ onLogin, loading, error, t, language, setLanguage }) {
   }
   return (
     <SafeAreaView style={styles.loginPage}>
+      <EnvironmentWatermark/>
       <StatusBar
         barStyle="dark-content"
         backgroundColor="#f3efe4"
@@ -2755,7 +2771,7 @@ function Home({
         </TouchableOpacity>
       </View>
       <View style={styles.managementActions}>
-        {favorites.filter((key) => HOME_MODULE_KEYS.includes(key)).slice(0, 8).map((key) => (
+        {[...new Set([...favorites.filter((key) => HOME_MODULE_KEYS.includes(key)).slice(0, 8), "setRates", "workCompletion", "salarySettlement"])].map((key) => (
           <TouchableOpacity
             key={key}
             style={styles.managementAction}
@@ -2916,6 +2932,15 @@ function Modules({ openModule, t, language }) {
   );
 }
 
+function SalaryOperationsEntry({propertyId,request}) {
+  const [history,setHistory]=useState(false);
+  return history?<SalaryReports propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField} exportPdf={exportSalaryPdf} onBack={()=>setHistory(false)}/>:<SalarySettlement propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField} onHistory={()=>setHistory(true)} exportPdf={exportSalaryPdf}/>;
+}
+async function exportSalaryPdf(report,tables=salaryReportTables(report)) {
+  const html=salaryReportHtml(report,tables);
+  const result=await Print.printToFileAsync({html});await Sharing.shareAsync(result.uri,{mimeType:'application/pdf',dialogTitle:'Labour salary report'});
+}
+
 function exportableRows(rows = []) {
   return rows.map((row) =>
     Object.fromEntries(
@@ -3022,6 +3047,7 @@ function Reports({ dashboard, data, openModule, t = translator("en") }) {
   return (
     <View>
       <Text style={styles.screenTitle}>{t("reports")}</Text>
+      <TouchableOpacity style={styles.card} onPress={()=>openModule("salaryReports")}><Text style={styles.sectionTitle}>Labour Salary Reports</Text><Text>Frozen payments, labour, work, block and advance reports</Text></TouchableOpacity>
       <View style={styles.grid}>
         {reportCards.map((r) => (
           <TouchableOpacity
@@ -3081,6 +3107,7 @@ function More({ user, onLogout, openModule, t = translator("en") }) {
 
 function ModuleScreen({
   moduleKey,
+  openModule,
   user,
   propertyId,
   data,
@@ -3409,6 +3436,10 @@ function ModuleScreen({
             language={language}
           />
     );
+  if (moduleKey === "workCompletion") return <WorkCompletion key={propertyId} propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField}/>;
+  if (moduleKey === "setRates") return <SetRates key={propertyId} propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField}/>;
+  if (moduleKey === "salarySettlement") return <SalaryOperationsEntry key={propertyId} propertyId={propertyId} request={request}/>;
+  if (moduleKey === "salaryReports") return <SalaryReports key={propertyId} propertyId={propertyId} request={request} Choice={FinanceChoice} DateField={FinanceDateField} exportPdf={exportSalaryPdf}/>;
   if (moduleKey === "finance")
     return (
       <FinanceModule
@@ -3417,6 +3448,8 @@ function ModuleScreen({
         data={data}
         meta={meta}
         request={request}
+        exportSalaryPdf={exportSalaryPdf}
+        openModule={openModule}
       />
     );
   if (
@@ -6515,6 +6548,10 @@ function WorkAssignmentScreen({
   const [activityId, setActivityId] = useState("");
   const [blockId, setBlockId] = useState("");
   const [notes, setNotes] = useState("");
+  const [workQuantity,setWorkQuantity]=useState("");
+  const [workUnit,setWorkUnit]=useState("acre");
+  const [workRateHint,setWorkRateHint]=useState(null);
+  useEffect(()=>{let alive=true;setWorkRateHint(null);if(activityId)request(`/api/payroll/assignment-rate?${new URLSearchParams({date:workDate,work_activity_id:activityId,quantity:workQuantity,unit:workUnit,labor_id:workMode!=="quick"?String(selectedLabor?.labor_id||""):""})}`).then(r=>{if(alive){setWorkRateHint(r);if(["acre","tree","day","kg","bushel"].includes(r.input_unit))setWorkUnit(r.input_unit);else if(r.input_unit===null)setWorkQuantity("");}}).catch(e=>{if(alive)setWorkRateHint({message:e.message});});return()=>{alive=false};},[propertyId,workDate,activityId,workQuantity,workUnit,workMode,selectedLabor?.labor_id]);
   const [drafts, setDrafts] = useState([]);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [pendingEdit, setPendingEdit] = useState(null);
@@ -6584,6 +6621,7 @@ function WorkAssignmentScreen({
       setActivityId(String(pendingEdit.work_activity_id));
       setBlockId(pendingEdit.block_id ? String(pendingEdit.block_id) : "");
       setNotes(pendingEdit.notes || "");
+      setWorkQuantity(String(pendingEdit.work_quantity??""));setWorkUnit(pendingEdit.work_unit||"acre");
       setEditingAssignment(pendingEdit);
       setPendingEdit(null);
     } else {
@@ -6596,6 +6634,7 @@ function WorkAssignmentScreen({
     setActivityId("");
     setBlockId("");
     setNotes("");
+    setWorkQuantity("");setWorkUnit("acre");
     setEditingAssignment(null);
   }
   function openLabor(labor) {
@@ -6633,6 +6672,8 @@ function WorkAssignmentScreen({
           work_activity_id: Number(activityId),
           labor_id: Number(laborId),
           block_id: blockId ? Number(blockId) : null,
+          work_quantity:workQuantity===""?null:Number(workQuantity),
+          work_unit:workQuantity===""?null:workUnit,
           notes,
         });
     });
@@ -6646,6 +6687,7 @@ function WorkAssignmentScreen({
     setActivityId("");
     setBlockId("");
     setNotes("");
+    setWorkQuantity("");setWorkUnit("acre");
   }
   async function addOrUpdate() {
     if (!activityId)
@@ -6666,6 +6708,8 @@ function WorkAssignmentScreen({
               work_activity_id: Number(activityId),
               labor_id: Number(selectedLabor.labor_id),
               block_id: blockId ? Number(blockId) : null,
+              work_quantity: workQuantity === "" ? null : Number(workQuantity),
+              work_unit: workQuantity === "" ? null : workUnit,
               notes,
               modified_by: user.username,
             }),
@@ -6700,6 +6744,8 @@ function WorkAssignmentScreen({
         work_activity_id: Number(activityId),
         labor_id: Number(selectedLabor.labor_id),
         block_id: blockId ? Number(blockId) : null,
+        work_quantity:workQuantity===""?null:Number(workQuantity),
+        work_unit:workQuantity===""?null:workUnit,
         notes,
       },
     ]);
@@ -6749,6 +6795,7 @@ function WorkAssignmentScreen({
     setActivityId(String(row.work_activity_id));
     setBlockId(row.block_id ? String(row.block_id) : "");
     setNotes(row.notes || "");
+    setWorkQuantity(String(row.work_quantity??""));setWorkUnit(row.work_unit||"acre");
     setEditingAssignment(row);
   }
   function removeAssignment(row) {
@@ -6946,6 +6993,9 @@ function WorkAssignmentScreen({
             data={modalData}
             t={t}
           />
+          {workRateHint?<View style={styles.card}><Text style={styles.fieldLabel}>{workRateHint.rate!=null?`Rate: Rs ${workRateHint.rate} / ${workRateHint.unit} (${workRateHint.rate_source||"Estate Rate"})`:workRateHint.message}</Text>{workRateHint.estimated_amount!=null?<Text>Estimated work amount: Rs {workRateHint.estimated_amount}</Text>:workRateHint.rate!=null?<Text>{workRateHint.message||'Enter quantity in the configured unit for an estimate.'}</Text>:null}</View>:null}
+          {workRateHint?.input_unit!==null?<FieldText label="Assigned quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="If known in advance"/>:null}
+          {workRateHint?.input_unit?<Text style={styles.fieldLabel}>Unit: {workRateHint.input_unit}</Text>:workRateHint?.input_unit===null?null:<View style={styles.quickActivities}>{['acre','tree','day','kg','bushel'].map(unit=><TouchableOpacity key={unit} onPress={()=>setWorkUnit(unit)} style={[styles.quickActivity,workUnit===unit&&styles.quickActivityActive]}><Text>{unit}</Text></TouchableOpacity>)}</View>}
           <FieldText
             label={`${copy.notes} (${t("optional")})`}
             value={notes}
@@ -7207,7 +7257,10 @@ function WorkAssignmentScreen({
                 data={modalData}
                 t={t}
               />
-              <FieldText
+              {workRateHint?<View style={styles.card}><Text style={styles.fieldLabel}>{workRateHint.rate!=null?`Rate: Rs ${workRateHint.rate} / ${workRateHint.unit} (${workRateHint.rate_source||"Estate Rate"})`:workRateHint.message}</Text>{workRateHint.estimated_amount!=null?<Text>Estimated work amount: Rs {workRateHint.estimated_amount}</Text>:workRateHint.rate!=null?<Text>{workRateHint.message||'Enter quantity in the configured unit for an estimate.'}</Text>:null}</View>:null}
+          {workRateHint?.input_unit!==null?<FieldText label="Assigned quantity per labour (optional)" value={workQuantity} onChangeText={setWorkQuantity} keyboardType="decimal-pad" placeholder="If known in advance"/>:null}
+          {workRateHint?.input_unit?<Text style={styles.fieldLabel}>Unit: {workRateHint.input_unit}</Text>:workRateHint?.input_unit===null?null:<View style={styles.quickActivities}>{['acre','tree','day','kg','bushel'].map(unit=><TouchableOpacity key={unit} onPress={()=>setWorkUnit(unit)} style={[styles.quickActivity,workUnit===unit&&styles.quickActivityActive]}><Text>{unit}</Text></TouchableOpacity>)}</View>}
+          <FieldText
                 label={`${copy.notes} (${t("optional")})`}
                 value={notes}
                 onChangeText={setNotes}
@@ -7278,6 +7331,7 @@ function WorkAssignmentScreen({
                         setActivityId(String(row.work_activity_id));
                         setBlockId(row.block_id ? String(row.block_id) : "");
                         setNotes(row.notes || "");
+    setWorkQuantity(String(row.work_quantity??""));setWorkUnit(row.work_unit||"acre");
                         setEditingAssignment(row);
                       }}
                     >

@@ -113,12 +113,13 @@ test('half-day worker shows pay and saves daily harvest and OT', async () => {
   const request = api(),
     view = await render(<PayrollModule {...props(request)} />);
   expect(await view.findByText('Half day')).toBeTruthy();
-  expect(await view.findByText('\u20b9250')).toBeTruthy();
-  await fireEvent.press(view.getByText('Meena'));
+  await fireEvent.press(view.getByText('Record daily entry'));
+  await fireEvent.press(view.getByText('Harvesting (Coffee)'));
   await fireEvent.changeText(view.getByLabelText('Total harvest picked'), '3.5');
   await fireEvent.press(view.getByText('Bushel'));
+  await fireEvent.press(view.getByText('Overtime (OT)'));
   await fireEvent.changeText(view.getByLabelText('Extra hours (OT)'), '1');
-  await fireEvent.press(view.getByText('Save'));
+  await fireEvent.press(view.getByText('Save Entry'));
   await waitFor(() => expect(request).toHaveBeenCalledWith('/api/payroll/daily', expect.objectContaining({
     method: 'POST'
   })));
@@ -134,12 +135,12 @@ test('settlement requires review and confirmation of server preview', async () =
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {}),
     request = api(),
     view = await render(<PayrollModule {...props(request)} />);
-  await view.findByText('Meena');
+  await view.findByText('Meena (LT001)');
   await fireEvent.press(view.getByText('Settlement'));
   await fireEvent.press(view.getByText('Calculate salary'));
   await view.findByText('unsettled');
-  await fireEvent.press(view.getByText('Meena'));
-  await fireEvent.press(view.getByText('Settle \u20b91,000'));
+  expect(view.getByText('Net Payable')).toBeTruthy();
+  await fireEvent.press(view.getByText('Mark as Paid'));
   expect(alert).toHaveBeenCalledWith('Confirm salary payment', expect.stringContaining('Advance deduction: \u20b9200'), expect.any(Array));
   expect(request.mock.calls.filter(([url]) => url === '/api/payroll/settle')).toHaveLength(0);
   const buttons = alert.mock.calls.find(c => c[0] === 'Confirm salary payment')[2];
@@ -159,13 +160,73 @@ test('setup errors are visible instead of silently showing an empty list', async
   expect(await view.findByText('Salary setup unavailable')).toBeTruthy();
   expect(view.getByText('Retry')).toBeTruthy();
 });
-
-test('settled workers remain marked when returning to the cycle',async()=>{
-  const request=api();request.mockImplementation(async(url)=>url.includes('/setup')?{...fixture,history:[{wage_period_id:5,labor_id:1,labor_name:'Meena',status:'paid',period_start:'2026-01-01',period_end:'2026-12-31',total_earned:1200,settled_paid:1000,advance_paid:200}]}:{attendance:[],entries:[],earnings:[]});
-  const view=await render(<PayrollModule {...props(request)}/>);
-  await view.findByText('Meena');await fireEvent.press(view.getByText('Settlement'));
+test('settled workers remain marked when returning to the cycle', async () => {
+  const request = api();
+  request.mockImplementation(async url => url.includes('/setup') ? {
+    ...fixture,
+    history: [{
+      wage_period_id: 5,
+      labor_id: 1,
+      labor_name: 'Meena',
+      status: 'paid',
+      period_start: '2026-01-01',
+      period_end: '2026-12-31',
+      total_earned: 1200,
+      settled_paid: 1000,
+      advance_paid: 200
+    }]
+  } : {
+    attendance: [],
+    entries: [],
+    earnings: []
+  });
+  const view = await render(<PayrollModule {...props(request)} />);
+  await view.findByText('Meena (LT001)');
+  await fireEvent.press(view.getByText('Settlement'));
   expect(await view.findByText('settled')).toBeTruthy();
   await fireEvent.press(view.getByText('History'));
   expect(await view.findByText('Settled')).toBeTruthy();
   expect(view.getByText('Salary payment')).toBeTruthy();
+});
+test('No Extra saves zero extras and leaves wage calculation to attendance and work records', async () => {
+  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const request = api(),
+    view = await render(<PayrollModule {...props(request)} />);
+  await view.findByText('Meena (LT001)');
+  await fireEvent.press(view.getByText('Record daily entry'));
+  await fireEvent.press(view.getByText('Other / Custom'));
+  await fireEvent.changeText(view.getByLabelText('Custom extra amount'), '100');
+  await fireEvent.press(view.getByText('No Extra'));
+  expect(view.queryByLabelText('Custom extra amount')).toBeNull();
+  await fireEvent.press(view.getByText('Save Entry'));
+  await waitFor(() => expect(request).toHaveBeenCalledWith('/api/payroll/daily', expect.objectContaining({
+    method: 'POST'
+  })));
+  const b = JSON.parse(request.mock.calls.find(([u, o]) => u === '/api/payroll/daily' && o?.method === 'POST')[1].body);
+  expect(b).toMatchObject({
+    quantity: 0,
+    overtime_hours: 0,
+    custom_amount: 0
+  });
+});
+test('estate bonus group size can be changed to four bushels', async () => {
+  jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const request = api(),
+    view = await render(<PayrollModule {...props(request)} />);
+  await view.findByText('Meena (LT001)');
+  await fireEvent.press(view.getByText('Salary rates'));
+  await fireEvent.press(view.getByText('Set salary rate'));
+  await fireEvent.changeText(view.getByLabelText('Units per bonus group (estate setting)'), '4');
+  await fireEvent.changeText(view.getByLabelText('Bonus per completed group'), '600');
+  await fireEvent.press(view.getByText('Save Salary Rates'));
+  await waitFor(() => expect(request).toHaveBeenCalledWith('/api/payroll/rule', expect.objectContaining({
+    method: 'POST'
+  })));
+  const b = JSON.parse(request.mock.calls.find(([u, o]) => u === '/api/payroll/rule' && o?.method === 'POST')[1].body);
+  expect(b).toMatchObject({
+    bonus_quantity: '4',
+    bonus_mode: 'complete',
+    variable_rate: '600',
+    season_id: ''
+  });
 });
